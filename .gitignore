@@ -1,0 +1,17 @@
+/.local/
+/artifacts/
+/references/
+/GameData/
+/Saves/
+*.exe
+*.dll
+*.lib
+*.pcx
+*.dls
+*.sgt
+*.mpg
+*.apk
+*.sav
+*.keystore
+*.jks
+__pycache__/
