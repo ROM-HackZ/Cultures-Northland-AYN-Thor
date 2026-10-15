@@ -1,16 +1,16 @@
 # Northland on AYN Thor
 
-I wanted to play Cultures: Northland on my Thor with proper controls and something
-useful on the bottom screen. This adds a cursor, a command wheel and big, labeled
-action buttons to the official Android game.
+After getting Generals working on the Thor, I wanted to play Cultures: Northland
+with the buttons and sticks too. This adds controller support, command and
+group wheels, and a bottom screen with buttons you can actually read.
 
 The game stays on the top screen. The left stick moves your cursor, the right
 stick pans the map, and the bottom screen holds villager actions and shortcuts
 for settlement and game menus. Touch still works as usual.
 
 You need your own copy of [Cultures: Northland for Android](https://play.google.com/store/apps/details?id=com.runesoft.cultures).
-This is a companion app, not a new Northland engine. It leaves the purchased app
-and its saves alone. No root, modified game APK or PC game files needed.
+The companion runs alongside the purchased app and leaves its saves alone.
+No root, modified game APK or PC game files needed.
 
 This is an early prototype running on a real Thor. Setup still needs a computer
 and a local build. There's no ready-to-install release yet.
@@ -27,11 +27,10 @@ and a local build. There's no ready-to-install release yet.
 | B | Deselect, cancel, go back or close the current window |
 | Y | Open the selected character's original action menu |
 | LB | Hold to add to a selection with LT or A |
-| RB | Select the next civilian |
+| RB | Hold for the group wheel. The group controls are below |
 | RT | Hold for the command wheel. Choose with the right stick, press A to confirm or B to cancel |
 | R3 | Cycle zoom levels |
-| D-pad Up | Headquarters |
-| D-pad Down | Character list |
+| D-pad Up / Right / Down / Left | Select group 1 / 2 / 3 / 4. Select again to center the camera |
 | Start | Pause |
 | Select | Toggle the game's map |
 
@@ -49,6 +48,7 @@ Save and Back. Save opens the game's save window so you can choose a slot.
 | Villager | Actions, build, profession, home, workplace, roads, next civilian and next scout |
 | Settlement | Headquarters, character list, statistics, technology, diplomacy, map, zoom and help |
 | Session | Save, load, options, help, pause, speed, map and zoom |
+| Groups | All ten group slots, with Select, Set from selection and Add selection buttons |
 
 Select a character, then tap **Villager > Actions**. Their circular menu appears
 in the game and the bottom screen shows the commands we can read as text buttons.
@@ -60,10 +60,41 @@ after selecting someone else or changing their profession. **Next page** shows
 any commands beyond the first 15.
 
 The companion reads the menu when you open or refresh Actions, then checks the
-chosen command again when you tap a button. It can miss buttons. Y always opens
-the original menu if something is missing. We know 38 character commands so far,
-but only civilian and builder menus have had live checks. Other professions,
-soldiers, women and groups still need testing.
+chosen command again when you tap a button. It can miss buttons, so use Y for
+the original menu if something is missing. It recognizes 38 character commands.
+I've checked civilian and builder menus on the Thor. Other professions, soldiers,
+women and menus for multiple selected units still need testing.
+
+## Saved groups
+
+Northland has ten groups, numbered 1 to 9, then 0. Select the units you want
+together, hold RB, choose a slot and hold Y until the bar fills. That selection
+is now your saved group. You can get it back without finding everyone again.
+
+| While holding RB | What it does |
+| --- | --- |
+| Right stick | Choose a group slot |
+| A | Select that group |
+| Hold Y until the bar fills | Save your selected units into that slot, replacing its old group |
+| X | Add your selected units to the group |
+| B, or release RB | Close without choosing a command |
+
+The D-pad gets your first four groups in one press: Up is 1, Right is 2, Down is
+3 and Left is 4. Select the same group again to center the camera on it. Use the
+RB wheel or bottom-screen Groups page for all ten.
+
+Changed your mind while saving? Release Y early or press B. Moving to another
+slot cancels the hold too. Release Y before trying again. On the bottom screen,
+**Set from selection** asks you to confirm before replacing anything.
+
+These are Northland's own groups. Each unit belongs to one, so assigning it to
+another moves it out of the old group. Selecting an empty slot deselects everyone.
+The companion shows numbers rather than guessing who's in each group. Group
+commands use the game's keyboard shortcuts and don't need screen recognition.
+
+Tap **Refresh actions** after selecting a group to read its commands. Next
+civilian is still on Villager. Headquarters and the character list are on
+Settlement. [More about groups and the tests](docs/control-groups.md).
 
 ## Getting it running
 
@@ -127,8 +158,9 @@ buttons before returning to play.
 | Controller input | Cursor, camera, selection boxes, orders, zoom and wheel confirmation checked through the Thor's controller input path |
 | Character actions | Civilian and builder menus checked, including profession, equipment and building-site targeting. Some screen conditions can hide a button from recognition |
 | Stable action list | Camera movement and closing the original menu leave the bottom buttons unchanged. Refresh with no selection clears the list |
+| Saved groups | Saving and recalling Knut, camera centering, adding him to an empty group, touch controls and cancellation checked. Multi-unit armies and group save/load still need testing |
 | Returning from other apps | Held input releases. One return test restarted Northland, so session recovery still needs work |
-| Longer play | Full campaigns, every character type, groups, text entry, sound and long sessions still need proper testing |
+| Longer play | Full campaigns, every character type, multi-unit groups, text entry, sound and long sessions still need proper testing |
 | Setup | Computer required after each reboot. A simple installer and phone-only activation are unfinished |
 
 The current build assumes the tested Thor setup: Android 13, a 1920x1080 top
@@ -150,13 +182,15 @@ version and pictures of both screens if they help.
 | `scripts/build-android.sh` | Local APK and helper build |
 | `scripts/android-controller.py` | Install, show, start and stop the companion and helper |
 | `scripts/verify-android-controller.py` | Device checks that record input state and both screens |
+| `scripts/verify-control-groups.py` | Group wheel, D-pad and bottom-screen group checks on the Thor |
 | `tests/android/` | Local checks for action lists, menu recognition and message handling |
 | `docs/` | Design notes, device results and the earlier Windows experiment |
 
-Run the action-list checks locally with Java installed:
+Run the action-list and group-control checks locally with Java installed:
 
 ```sh
 bash scripts/check-action-snapshots.sh
+bash scripts/check-control-groups.sh
 ```
 
 The recognition checks need your own private reference captures. The
