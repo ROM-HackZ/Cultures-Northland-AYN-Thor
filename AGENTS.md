@@ -9,6 +9,11 @@ Cultures: Northland Android app. The Windows compatibility experiment is history
 - The target is the original game with controller and two-screen support.
 - Keep the installed official Android app, license checks and saves intact.
   Our companion and ADB shell helper must not replace or re-sign that app.
+- Exception approved for the private APK feasibility experiment: locally rebuild
+  and sign copies of the owner's APKs as `org.northland.thor.experimental`,
+  labeled Northland Thor Test. Preserve all license checks. Never replace the
+  purchased installation or publish retail APKs, decoded code or assets.
+  Updates may replace only that experimental package, retaining its data.
 - Restrict privileged input to Northland on display 0. Authenticate companion IPC
   by kernel peer UID and expose named commands only.
 - Release input on focus loss, companion loss and clean shutdown. Require neutral
