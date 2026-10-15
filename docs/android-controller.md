@@ -6,6 +6,15 @@ Tests on October 15, 2026 use official Android Northland 1.1 (16), package `com.
 
 | Check | Evidence |
 | --- | --- |
+| Native groups | Ctrl-number saved Knut and number recalled him in the official Android game. The companion's RB + hold Y saved him into the previously empty group 1; D-pad Up recalled him and repeated recall centered the camera. Native selection panels are visible in `artifacts/groups-quick/dpad-after-top.png` |
+| Four D-pad shortcuts | Up, Right, Down and Left requested groups 1, 2, 3 and 4 respectively. Each held direction, including a duplicate hat/button report, increased the request counter only once. Evidence is in `artifacts/groups-quick/` and `groups-quick-2/` through `groups-quick-4/` |
+| Group cancellation and input ownership | Cancelled replacement, a slot change during a held Y, diagonals, competing wheel openers and RB during an LT selection drag passed in `artifacts/groups-installed/`. The final simultaneous RT + RB + A check also injected no click, command or group operation (`artifacts/groups-final-both/`) |
+| Group touch controls and Add | Set displayed a separate confirmation, Cancel sent no request and Set with an empty selection cleared the spare test group. Adding Knut to that empty group then recalling it selected him again. Evidence: `artifacts/groups-touch/`, `groups-touch-empty/`, `groups-touch-add9/`, `groups-added9-recall/` |
+| Group hold interrupted by companion loss | Stopping only our companion during a Y replacement hold cancelled the wheel, released input and prevented a group operation. Reconnecting while the controls remained held waited for neutral. Northland's activity was not restarted (`artifacts/groups-disconnect/`) |
+| RT wheel regression | RT + right-stick left + A still opened the original Save window and B closed it (`artifacts/groups-rt-regression/`, `groups-rt-close/`) |
+| Group test limits | Tutorial has one subject, Knut. Multi-unit addition preserving existing members, soldiers, mixed selections and group membership after save/load remain unverified. No mission was loaded or advanced for these checks |
+| Native membership rules | Moving Knut from group 9 to group 1 removed him from 9. Recalling 9 then cleared selection, while D-pad Up selected Knut again. Captures: `artifacts/groups-old-slot9/select-after-top.png`, `groups-final-recall1/dpad-after-top.png`. Group 1 is left available for the owner to try |
+| Actions after group recall | Recall cleared the earlier Actions page and required Refresh (`artifacts/groups-actions-invalidation/dpad-after-bottom.png`). An empty group's native selection stays empty rather than showing invented actions |
 | Actions snapshots and paging | Installed snapshot build read the builder's 16 commands; page two showed Assign building site, which opened the original “Select a building site” mode. Cancelled without choosing a target. Evidence: `artifacts/snapshot-final-builder-bottom.png`, `snapshot-final-builder-page2.png`, `snapshot-final-builder-site.png` |
 | Explicit refresh and unavailable selection | Refresh after deselecting cleared the command list and showed the select-character message (`artifacts/snapshot-final-empty.png`). Selecting Knut and refreshing restored the commands. Profession and equipment opened their matching native windows. Knut was restored to Civilian after the builder check |
 | Snapshot during camera movement | Bottom captures stayed pixel-identical while right-stick pan changed the top-screen terrain, and after the original menu closed. RGB comparisons, including all color channels, passed for `artifacts/snapshot-final-ready-pan/` and `snapshot-final-left-pan/`. A minimap jump also changed the top without changing the bottom list |
@@ -19,7 +28,7 @@ Tests on October 15, 2026 use official Android Northland 1.1 (16), package `com.
 | Synthetic right stick | Odin Controller events produce held Right, visible terrain movement, then release |
 | Synthetic left stick | Axis events move the overlay cursor and game hover location |
 | Synthetic X | Knut visibly walks to the cursor position |
-| Synthetic Y / B / RB / R3 | Actions open and close, civilian selection works, and zoom changes |
+| Earlier synthetic Y / B / RB / R3 | Actions open and close, civilian selection worked with the earlier RB mapping, and zoom changes. RB now opens Groups; next civilian remains on the bottom screen |
 | Synthetic A | Left mouse press/release reaches injected state; full selection and drag need a dedicated gameplay pass |
 | A held with left-stick motion and X | Mouse movement continues with left held; X does not interrupt the drag |
 | LT selection and left-stick drag | The game's selection rectangle is visible in the captured held state; trigger release ends the left-mouse hold |
@@ -104,6 +113,20 @@ python scripts/derive-action-fingerprints.py --library PATH_TO_OWNED_LIB/libNort
 ```
 
 The generator requires Pillow. Its binary profile is hash-checked against the reviewed library. Existing on-device calibration samples are retained alongside generated signatures; the generator does not overwrite the app's source. Retail copies and reference screenshots remain ignored.
+
+## Repeat group checks
+
+The [group controls guide](control-groups.md) describes the new mapping and local
+checks. On-device checks use, for example:
+
+```sh
+python scripts/verify-control-groups.py --adb PATH_TO_ADB --serial DEVICE_SERIAL --case wheel --slot 9
+python scripts/verify-control-groups.py --adb PATH_TO_ADB --serial DEVICE_SERIAL --case dpad --slot 1
+```
+
+The replace and add cases intentionally change the chosen slot; use a spare
+group. Captures remain private. These checks do not establish sound, physical
+stick feel or multi-unit membership from helper counters alone.
 
 ## API references
 

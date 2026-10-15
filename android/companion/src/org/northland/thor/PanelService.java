@@ -17,7 +17,8 @@ public final class PanelService extends Service {
     final ConcurrentLinkedQueue<String> commands = new ConcurrentLinkedQueue<>();
     volatile boolean running, connected, active, armed;
     volatile LocalSocket socket;
-    volatile int cursorX = 960, cursorY = 540, wheel = -1, choice = -1;
+    volatile int cursorX = 960, cursorY = 540, wheel = -1, choice = -1, replaceProgress;
+    long selectionRevision=-1;
     WindowManager topManager, bottomManager;
     CursorView cursor;
     DeckView deck;
@@ -49,6 +50,9 @@ public final class PanelService extends Service {
         handler.post(new Runnable() { public void run() {
             if (!running) return;
             int visibility = connected && active ? View.VISIBLE : View.INVISIBLE;
+            if(wheel>0 || !connected || !active || !armed) {
+                deck.confirmGroup=false;deck.pressedGroup=-1;deck.pressedGroupControl=-1;
+            }
             cursor.setVisibility(visibility); deck.setVisibility(visibility);
             cursor.invalidate(); deck.invalidate(); handler.postDelayed(this, 33);
         }});
@@ -92,11 +96,23 @@ public final class PanelService extends Service {
                                 "Release the controls, then try the action again.",android.widget.Toast.LENGTH_LONG).show());
                             continue;
                         }
+                        if(line.equals("notice group-busy") || line.equals("notice group-unavailable")) {
+                            handler.post(() -> android.widget.Toast.makeText(deck.getContext(),
+                                "Couldn't send the group command. Close any game window and release the controls.",
+                                android.widget.Toast.LENGTH_LONG).show());
+                            continue;
+                        }
                         String[] fields = line.split(" ");
-                        if (fields.length != 7 || !fields[0].equals("state")) throw new IOException("Bad bridge state");
+                        if (fields.length != 9 || !fields[0].equals("state")) throw new IOException("Bad bridge state");
                         active = fields[1].equals("1"); armed = fields[2].equals("1");
                         cursorX = Integer.parseInt(fields[3]); cursorY = Integer.parseInt(fields[4]);
                         wheel = Integer.parseInt(fields[5]); choice = Integer.parseInt(fields[6]);
+                        replaceProgress=Integer.parseInt(fields[7]);
+                        long revision=Long.parseLong(fields[8]);
+                        if(revision!=selectionRevision) {
+                            if(selectionRevision>=0) handler.post(() -> deck.invalidateActions());
+                            selectionRevision=revision;
+                        }
                         String command;
                         while ((command = commands.poll()) != null) out.write((command + "\n").getBytes("US-ASCII"));
                         if (SystemClock.uptimeMillis() - heartbeat > 1000) {
@@ -106,8 +122,8 @@ public final class PanelService extends Service {
                     }
                 } finally { s.close(); }
             } catch (Exception e) { /* A missing bridge is a visible offline state. */ }
-            connected = active = armed = false; wheel = -1; commands.clear();
-            handler.post(() -> { deck.snapshot=null;deck.actionError="Connection lost. Refresh after reconnecting."; });
+            connected = active = armed = false; wheel = -1;replaceProgress=0;selectionRevision=-1;commands.clear();
+            handler.post(() -> { deck.invalidateActions();deck.confirmGroup=false;deck.actionError="Connection lost. Refresh after reconnecting."; });
             try { if (socket != null) socket.close(); } catch (IOException ignored) { }
             SystemClock.sleep(750);
         }
@@ -134,31 +150,39 @@ public final class PanelService extends Service {
             c.drawLine(cursorX + 8, cursorY, cursorX + 22, cursorY, paint);
             c.drawLine(cursorX, cursorY - 22, cursorX, cursorY - 8, paint);
             c.drawLine(cursorX, cursorY + 8, cursorX, cursorY + 22, paint);
-            if (wheel == 1) drawWheel(c);
+            if (wheel == 1 || wheel == 2) drawWheel(c);
             c.restore();
         }
         void drawWheel(Canvas c) {
+            boolean groups=wheel==2;
+            int count=groups?10:8;
             paint.setStyle(Paint.Style.FILL); paint.setColor(0xee131f29);
             c.drawCircle(960, 540, 400, paint);
-            for (int i = 0; i < 8; i++) {
-                double a = i * Math.PI / 4 - Math.PI / 2;
+            for (int i = 0; i < count; i++) {
+                double a = i * Math.PI * 2/count - Math.PI / 2;
                 float cx = 960 + (float)Math.cos(a) * 285, cy = 540 + (float)Math.sin(a) * 285;
                 paint.setColor(i == choice ? 0xffbd8b35 : 0xff304452);
-                c.drawRoundRect(cx - 106, cy - 37, cx + 106, cy + 37, 18, 18, paint);
+                float half=groups?82:106;
+                c.drawRoundRect(cx - half, cy - 37, cx + half, cy + 37, 18, 18, paint);
                 paint.setColor(Color.WHITE); paint.setTextSize(27); paint.setTextAlign(Paint.Align.CENTER);
-                c.drawText(WHEEL[i], cx, cy + 10, paint);
+                c.drawText(groups?"Group "+GroupCommand.slotAt(i):WHEEL[i], cx, cy + 10, paint);
             }
             paint.setColor(0xffffdc86); paint.setTextSize(32);
-            c.drawText("COMMANDS", 960, 518, paint);
+            c.drawText(groups?"GROUPS":"COMMANDS", 960, 490, paint);
             paint.setColor(Color.WHITE); paint.setTextSize(24);
-            c.drawText("Right stick to choose", 960, 558, paint);
-            c.drawText("A confirm · B cancel", 960, 598, paint);
+            c.drawText("Right stick to choose", 960, 532, paint);
+            c.drawText(groups?"A select   X add":"A confirm   B cancel", 960, 570, paint);
+            if(groups) {
+                c.drawText("Hold Y to replace   B cancel",960,608,paint);
+                paint.setColor(0xffbd8b35);
+                c.drawRoundRect(850,634,850+220*replaceProgress/100f,646,5,5,paint);
+            }
         }
     }
 
     class DeckView extends View {
         final Paint p = new Paint(3);
-        final String[] tabs = {"VILLAGER", "SETTLEMENT", "SESSION"};
+        final String[] tabs = {"VILLAGER", "SETTLEMENT", "SESSION", "GROUPS"};
         final String[][] labels = {
             {"Actions", "Build", "Profession", "Assign home", "Workplace", "Road", "Next civilian", "Next scout", "Back"},
             {"Headquarters", "Characters", "Statistics", "Technology", "Diplomacy", "Map", "Zoom", "Help", "Back"},
@@ -176,6 +200,8 @@ public final class PanelService extends Service {
         int pressedAction=-1,actionPage;
         boolean actionsOpen;
         boolean commandGesture;
+        int groupIndex,pressedGroup=-1,pressedGroupControl=-1;
+        boolean confirmGroup;
         DeckView(Context ctx) { super(ctx); }
         void text(Canvas c, String t, float x, float y, float size, int color) {
             p.setStyle(Paint.Style.FILL); p.setColor(color); p.setTextSize(size); p.setTextAlign(Paint.Align.LEFT);
@@ -186,6 +212,11 @@ public final class PanelService extends Service {
         }
         boolean showingCommands() {
             return tab==0 && actionsOpen;
+        }
+        void invalidateActions() {
+            snapshot=null;actionRequest++;pressedAction=-1;
+            confirmGroup=false;pressedGroupControl=-1;
+            actionError="Group selection changed. Tap Refresh to read its actions.";
         }
         void refreshActions() {
             actionRequest=Math.max(actionRequest+1,SystemClock.uptimeMillis());
@@ -237,6 +268,51 @@ public final class PanelService extends Service {
             tile(c,365,967,660,1050,0xff253743);
             text(c,"Refresh actions",391,1020,27,0xfff5eddd);
         }
+        int groupCell(float x,float y) {
+            if(x<48 || x>=1192 || y<307 || y>=597) return -1;
+            int col=(int)((x-48)/232),row=(int)((y-307)/145);
+            if(col>4 || (x-48)%232>=216 || (y-307)%145>=125) return -1;
+            return row*5+col;
+        }
+        int groupControl(float x,float y) {
+            if(y>=690 && y<=790 && x>=48 && x<1192) {
+                int col=(int)((x-48)/386);
+                return col<3 && (x-48)%386<=372?col:-1;
+            }
+            if(confirmGroup && y>=820 && y<=910) {
+                if(x>=48 && x<=600) return 3;
+                if(x>=620 && x<=1192) return 4;
+            }
+            return -1;
+        }
+        void drawGroups(Canvas c) {
+            boolean controller=wheel==2;
+            int selected=controller?choice:groupIndex;
+            for(int i=0;i<10;i++) {
+                float l=48+(i%5)*232,t=307+(i/5)*145;
+                tile(c,l,t,l+216,t+125,i==selected?0xff816431:0xff263b49);
+                text(c,"Group "+GroupCommand.slotAt(i),l+24,t+72,31,0xfff5eddd);
+            }
+            text(c,selected>=0?"Group "+GroupCommand.slotAt(selected):"Choose a group with the right stick",48,650,32,0xffffd787);
+            String[] actions=controller?new String[]{"A  Select", "Hold Y  Replace", "X  Add selection"}:
+                new String[]{"Select group", "Set from selection", "Add selection"};
+            for(int i=0;i<3;i++) {
+                float l=48+i*386;
+                tile(c,l,690,l+372,790,i==1 && replaceProgress>0?0xff816431:0xff263b49);
+                text(c,actions[i],l+22,751,27,0xfff5eddd);
+            }
+            if(controller) {
+                tile(c,48,820,1192,840,0xff253743);
+                if(replaceProgress>0) tile(c,48,820,48+1144*replaceProgress/100f,840,0xffbd8b35);
+                text(c,"Hold Y to replace with your current selection. B cancels.",48,900,26,0xffffd787);
+            } else if(confirmGroup) {
+                tile(c,48,820,600,910,0xff253743);tile(c,620,820,1192,910,0xff816431);
+                text(c,"Cancel",74,877,29,0xfff5eddd);
+                text(c,"Replace group "+GroupCommand.slotAt(groupIndex),645,877,29,0xfff5eddd);
+            } else text(c,"Set replaces the group. Add keeps its existing members.",48,856,25,0xff91a9b9);
+            text(c,"Units move from their old group when assigned to another.",48,954,24,0xff91a9b9);
+            text(c,"D-pad: groups 1-4    Hold RB: all groups    Repeat select: center",48,1024,24,0xffd3e1e9);
+        }
         @Override protected void onDraw(Canvas canvas) {
             Canvas c = canvas; c.save(); c.scale(getWidth()/1240f, getHeight()/1080f);
             c.drawColor(0xff111c25);
@@ -248,11 +324,12 @@ public final class PanelService extends Service {
                     snapshot.unknown>0?"ACTIONS - "+snapshot.unknown+" unread; use the original menu for those":
                     "ACTIONS - checked when opened; Refresh after changing selection":"ACTIONS"):"CONTROLLER CONNECTED";
             text(c, state, 48, 167, 24, active && armed ? 0xff8dd9b2 : 0xffffc77b);
-            for (int i=0; i<3; i++) {
-                float left = 48 + i*386;
-                tile(c,left,202,left+372,280,tab==i?0xff816431:0xff253743);
-                text(c,tabs[i],left+25,252,25,0xfff5eddd);
+            for (int i=0; i<4; i++) {
+                float left = 48 + i*292;
+                tile(c,left,202,left+276,280,(wheel==2?i==3:tab==i)?0xff816431:0xff253743);
+                text(c,tabs[i],left+20,252,24,0xfff5eddd);
             }
+            if(wheel==2 || tab==3) { drawGroups(c);c.restore();return; }
             if(showingCommands()) { drawActions(c);c.restore();return; }
             for (int i=0; i<9; i++) {
                 float left=48+(i%3)*386, top=307+(i/3)*143;
@@ -262,7 +339,7 @@ public final class PanelService extends Service {
             text(c,"LS  Cursor     RS  Camera     LT  Tap select / confirm",48,810,25,0xffd3e1e9);
             text(c,"Hold LT, then release: order    ·    LT + LS: drag select",48,854,25,0xffd3e1e9);
             text(c,"Hold RT: wheel · RS chooses · A confirms · B cancels",48,908,26,0xffffd787);
-            text(c,"B Back / deselect · X Order · Y Actions · RB Next · R3 Zoom",48,951,24,0xff91a9b9);
+            text(c,"B Back · X Order · Y Actions · RB Groups · D-pad Groups 1-4",48,951,24,0xff91a9b9);
             text(c,"Hold LB to add to selection. Top-screen touch is unchanged.",48,1024,22,0xff91a9b9);
             c.restore();
         }
@@ -274,10 +351,17 @@ public final class PanelService extends Service {
         }
         @Override public boolean onTouchEvent(MotionEvent e) {
             float x=e.getX()*1240/getWidth(), y=e.getY()*1080/getHeight();
+            if(wheel==2 || !connected || !active || !armed) {
+                pressedGroup=-1;pressedGroupControl=-1;confirmGroup=false;return true;
+            }
             if(e.getActionMasked()==MotionEvent.ACTION_CANCEL) {
+                pressedGroup=-1;pressedGroupControl=-1;confirmGroup=false;
                 pressedAction=-1;pressedCell=-1;commandGesture=false;return true;
             }
             if(e.getActionMasked()==MotionEvent.ACTION_DOWN) {
+                if(tab==3 && y>=307) {
+                    pressedGroup=groupCell(x,y);pressedGroupControl=groupControl(x,y);return true;
+                }
                 if(showingCommands() && y>=307) {
                     commandGesture=true;pressedRequest=actionRequest;pressedAction=actionCell(x,y);
                     return true;
@@ -285,6 +369,20 @@ public final class PanelService extends Service {
                 pressedCell=cell(x,y); return true;
             }
             if(e.getActionMasked()==MotionEvent.ACTION_UP) {
+                if(tab==3 && y>=307) {
+                    int hit=groupCell(x,y),control=groupControl(x,y);
+                    if(hit>=0 && hit==pressedGroup) { groupIndex=hit;confirmGroup=false; }
+                    else if(control>=0 && control==pressedGroupControl) {
+                        if(control==1) confirmGroup=true;
+                        else if(control==3) confirmGroup=false;
+                        else if(control==0 || control==2 || control==4 && confirmGroup) {
+                            GroupCommand.Operation op=control==0?GroupCommand.Operation.SELECT:
+                                control==2?GroupCommand.Operation.ADD:GroupCommand.Operation.SET;
+                            commands.add(new GroupCommand(op,GroupCommand.slotAt(groupIndex)).encode());confirmGroup=false;
+                        }
+                    }
+                    pressedGroup=-1;pressedGroupControl=-1;performClick();return true;
+                }
                 if(commandGesture) {
                     if(pressedAction>=0 && connected && active && armed && actionCell(x,y)==pressedAction
                             && snapshot!=null && snapshot.request==pressedRequest && actionRequest==pressedRequest)
@@ -296,7 +394,10 @@ public final class PanelService extends Service {
                     commandGesture=false;pressedAction=-1;performClick();return true;
                 }
                 int hit=cell(x,y);
-                if(y>=202&&y<=280&&x>=48&&x<1192) { tab=Math.min(2,(int)((x-48)/386));actionsOpen=false; }
+                if(y>=202&&y<=280&&x>=48&&x<1192) {
+                    tab=Math.min(3,(int)((x-48)/292));actionsOpen=false;confirmGroup=false;
+                    pressedAction=-1;commandGesture=false;
+                }
                 else if(hit>=0&&hit==pressedCell&&connected&&active&&armed) {
                     if(tab==0 && hit==0) { actionsOpen=true;refreshActions(); }
                     else commands.add(ids[tab][hit]);

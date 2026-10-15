@@ -58,10 +58,14 @@ public final class InputBridge {
     LocalServerSocket server;
     NativeActions nativeActions;
     volatile LocalSocket panel;
-    volatile String status = "state 0 0 960 540 -1 -1";
+    volatile String status = "state 0 0 960 540 -1 -1 0 0";
     long lastDiagnostic;
     volatile boolean wheel;
-    boolean wheelCancelled;
+    final WheelState wheels=new WheelState();
+    final GroupDirections directions=new GroupDirections();
+    long selectionRevision;
+    int groupRequests,lastGroup=-1;
+    String lastGroupOperation="";
     boolean selectTriggerDown, selectionNeedsNeutral;
     int choice = -1;
     static final String[] WHEEL = {"actions", "build", "profession", "home", "workplace", "characters", "save", "cancel"};
@@ -124,6 +128,17 @@ public final class InputBridge {
                         }
                         catch (Exception e) { throw new RuntimeException(e); }
                     });
+                    else if(command.startsWith("group ")) {
+                        final GroupCommand group=GroupCommand.decode(command);
+                        pending.add(() -> {
+                            try {
+                                if(panel!=socket || !focused || !armed || wheel || mouseButtons!=0 || !pad.neutral()) {
+                                    panelMessages.add("notice group-busy");return;
+                                }
+                                performGroup(group);
+                            } catch(Exception e) { panelMessages.add("notice group-unavailable"); }
+                        });
+                    }
                     else if(command.startsWith("open-actions ")) {
                         final long request=Long.parseLong(command.substring(13));
                         if(request<=0) throw new IOException("Invalid action request");
@@ -225,16 +240,39 @@ public final class InputBridge {
         if (down == pressed.containsKey(code)) return;
         long now = SystemClock.uptimeMillis();
         long since = down ? now : pressed.get(code);
+        int meta=0;
+        if(code==KeyEvent.KEYCODE_SHIFT_LEFT?down:pressed.containsKey(KeyEvent.KEYCODE_SHIFT_LEFT))
+            meta|=KeyEvent.META_SHIFT_ON|KeyEvent.META_SHIFT_LEFT_ON;
+        if(code==KeyEvent.KEYCODE_CTRL_LEFT?down:pressed.containsKey(KeyEvent.KEYCODE_CTRL_LEFT))
+            meta|=KeyEvent.META_CTRL_ON|KeyEvent.META_CTRL_LEFT_ON;
         send(new KeyEvent(since, now, down ? KeyEvent.ACTION_DOWN : KeyEvent.ACTION_UP,
-                code, 0, 0, KeyCharacterMap.VIRTUAL_KEYBOARD, 0, 0, InputDevice.SOURCE_KEYBOARD));
+                code, 0, meta, KeyCharacterMap.VIRTUAL_KEYBOARD, 0, 0, InputDevice.SOURCE_KEYBOARD));
         if (down) pressed.put(code, since); else pressed.remove(code);
     }
 
     void tapKey(int code) throws Exception {
         key(code, true);
         // The game polls some key state per frame; a zero-duration pulse can be missed.
-        SystemClock.sleep(45);
-        key(code, false);
+        try { SystemClock.sleep(45); } finally { key(code, false); }
+    }
+
+    void performGroup(GroupCommand command) throws Exception {
+        LocalSocket owner=panel;
+        if(!focused || !armed || mouseButtons!=0 || owner==null || !gameFocused()) return;
+        release();
+        int modifier=command.operation==GroupCommand.Operation.SET?KeyEvent.KEYCODE_CTRL_LEFT:
+            command.operation==GroupCommand.Operation.ADD?KeyEvent.KEYCODE_SHIFT_LEFT:-1;
+        try {
+            if(modifier>=0) { key(modifier,true);SystemClock.sleep(45); }
+            if(!focused || panel!=owner || !gameFocused()) return;
+            tapKey(KeyEvent.KEYCODE_0+command.slot);
+            groupRequests++;lastGroup=command.slot;lastGroupOperation=command.operation.name();
+            if(command.operation==GroupCommand.Operation.SELECT) {
+                selectionRevision++;nativeActions.invalidate();
+            }
+        } finally {
+            if(modifier>=0) key(modifier,false);
+        }
     }
 
     void mouse(int action) throws Exception {
@@ -278,6 +316,7 @@ public final class InputBridge {
         boolean neutral() {
             for (int i : new int[]{0, 1, 2, 5}) if (Math.abs(axis[i]) > 7000) return false;
             for (int i = 0x130; i <= 0x13f; i++) if (buttons[i]) return false;
+            for(int i=0x220;i<=0x223;i++) if(buttons[i]) return false;
             return axis[16] == 0 && axis[17] == 0 && axis[9] < 8000 && axis[10] < 8000;
         }
     }
@@ -307,20 +346,33 @@ public final class InputBridge {
         System.out.println("Reading " + device + " (Odin Controller); no exclusive grab");
         reader = new ProcessBuilder("getevent", "-t", device).redirectErrorStream(true).start();
         Thread thread = new Thread(() -> {
-            Pattern event = Pattern.compile(".*?([0-9a-f]{4}) ([0-9a-f]{4}) ([0-9a-f]{8})\\s*$");
+            Pattern eventPattern = Pattern.compile(".*?([0-9a-f]{4}) ([0-9a-f]{4}) ([0-9a-f]{8})\\s*$");
             try (BufferedReader in = new BufferedReader(new InputStreamReader(reader.getInputStream()))) {
                 String line;
+                List<int[]> packet=new ArrayList<>();
                 while (running && (line = in.readLine()) != null) {
-                    Matcher m = event.matcher(line);
+                    Matcher m = eventPattern.matcher(line);
                     if (!m.matches()) continue;
                     int type = Integer.parseInt(m.group(1), 16);
                     int code = Integer.parseInt(m.group(2), 16);
                     int value = (int) Long.parseLong(m.group(3), 16);
-                    if (type == 3 && code < pad.axis.length) {
-                        synchronized (pad) { pad.axis[code] = value; }
-                    } else if (type == 1 && code < pad.buttons.length) {
-                        synchronized (pad) { pad.buttons[code] = value != 0; }
-                        if (value != 2) pending.add(() -> hardwareButton(code, value != 0));
+                    if(type==0 && code==0) {
+                        final List<int[]> complete=new ArrayList<>(packet);packet.clear();
+                        pending.add(() -> {
+                            try {
+                                for(int[] event:complete) {
+                                    if(event[0]==3) pad.axis[event[1]]=event[2];
+                                    else pad.buttons[event[1]]=event[2]!=0;
+                                }
+                                updateWheels();
+                                for(int[] event:complete) if(event[0]==1 && event[2]!=2)
+                                    hardwareButton(event[1],event[2]!=0);
+                                frame(0);
+                            } catch(Exception e) { throw new RuntimeException(e); }
+                        });
+                    } else if(type==3 && code<pad.axis.length || type==1 && code<pad.buttons.length) {
+                        packet.add(new int[]{type,code,value});
+                        if(packet.size()>256 || pending.size()>256) throw new IOException("Controller input backlog");
                     } else if (type == 0 && code == 3) {
                         throw new IOException("Controller event overflow; restart with controls released");
                     }
@@ -336,11 +388,19 @@ public final class InputBridge {
     void hardwareButton(int code, boolean down) {
         if (!focused || !armed) return;
         try {
-            if (wheel) {
-                if (code == 0x130 && down && choice >= 0 && !wheelCancelled) {
-                    tapKey(COMMANDS.get(WHEEL[choice])); wheelCancelled = true;
+            if (wheels.capturesInput) {
+                if(down && wheels.mode!=WheelState.Mode.NONE) {
+                    if(code==0x131) wheels.finish();
+                    else if(choice>=0 && code==0x130) {
+                        if(wheels.mode==WheelState.Mode.GROUPS)
+                            performGroup(new GroupCommand(GroupCommand.Operation.SELECT,GroupCommand.slotAt(choice)));
+                        else tapKey(COMMANDS.get(WHEEL[choice]));
+                        wheels.finish();
+                    } else if(choice>=0 && code==0x133 && wheels.mode==WheelState.Mode.GROUPS) {
+                        performGroup(new GroupCommand(GroupCommand.Operation.ADD,GroupCommand.slotAt(choice)));
+                        wheels.finish();
+                    }
                 }
-                if (code == 0x131 && down) wheelCancelled = true;
                 return;
             }
             switch (code) {
@@ -352,9 +412,7 @@ public final class InputBridge {
                     key(KeyEvent.KEYCODE_ESCAPE, down);break; // B
                 case 0x134: key(KeyEvent.KEYCODE_SPACE, down); break; // Y
                 case 0x136: key(KeyEvent.KEYCODE_SHIFT_LEFT, down); break; // LB
-                case 0x137:
-                    key(KeyEvent.KEYCODE_PERIOD, down);
-                    break; // RB
+                case 0x137: break; // RB owns the group wheel.
                 case 0x13a: key(KeyEvent.KEYCODE_F10, down); break; // Select
                 case 0x13b: key(KeyEvent.KEYCODE_P, down); break; // Start
                 case 0x13e: key(KeyEvent.KEYCODE_Z, down); break; // R3, verified vendor .kl
@@ -369,10 +427,23 @@ public final class InputBridge {
         return Math.copySign(m * m, n);
     }
 
+    void updateWheels() throws Exception {
+        if(!focused || !armed || panel==null) return;
+        WheelState.Mode before=wheels.mode;
+        wheels.update(pad.axis[9]>12000 || pad.buttons[0x139],pad.buttons[0x137],
+            mouseButtons!=0 || pad.axis[10]>8000 || pad.buttons[0x138],
+            pad.axis[2]/32767f,pad.axis[5]/32767f);
+        if(before==WheelState.Mode.NONE && wheels.mode!=WheelState.Mode.NONE) {
+            release();selectTriggerDown=false;selectionNeedsNeutral=true;
+        }
+        wheel=wheels.capturesInput;choice=wheels.choice;
+    }
+
     void frame(float dt) throws Exception {
         synchronized (pad) {
             if (!focused || panel == null) {
-                armed = false; wheel = false; selectTriggerDown = false;
+                armed = false; wheel = false; wheels.reset();selectTriggerDown = false;
+                directions.update(false,false,false,false,false);
                 selectionNeedsNeutral = true; release(); return;
             }
             if (!armed) {
@@ -380,19 +451,18 @@ public final class InputBridge {
                 if (armed) selectionNeedsNeutral = false;
                 return;
             }
-            boolean rt = pad.axis[9] > 12000 || pad.buttons[0x139];
-            if (rt && !wheel) {
-                release(); wheelCancelled = false; selectTriggerDown = false;
-                selectionNeedsNeutral = true;
-            }
-            if (!rt) wheelCancelled = false;
-            wheel = rt;
+            updateWheels();
+            int quick=directions.update(pad.axis[17]<0 || pad.buttons[0x220],pad.axis[16]>0 || pad.buttons[0x223],
+                pad.axis[17]>0 || pad.buttons[0x221],pad.axis[16]<0 || pad.buttons[0x222],
+                !wheel && mouseButtons==0 && pad.axis[10]<8000 && !pad.buttons[0x138] && !pad.buttons[0x130]);
             if (wheel) {
-                float wx = pad.axis[2] / 32767f, wy = pad.axis[5] / 32767f;
-                choice = Math.hypot(wx, wy) < .35 ? -1 :
-                    ((int)Math.floor((Math.atan2(wx, -wy) + Math.PI / 8 + Math.PI * 2) / (Math.PI / 4))) % 8;
+                if(wheels.replace(pad.buttons[0x134],SystemClock.uptimeMillis())) {
+                    performGroup(new GroupCommand(GroupCommand.Operation.SET,GroupCommand.slotAt(wheels.choice)));
+                    wheels.finish();
+                }
                 return;
             }
+            if(quick>=0) performGroup(new GroupCommand(GroupCommand.Operation.SELECT,quick));
             key(KeyEvent.KEYCODE_SHIFT_LEFT, pad.buttons[0x136]);
             // Hysteresis avoids repeated clicks around the analog trigger threshold.
             boolean lt = pad.axis[10] > (selectTriggerDown ? 8000 : 12000) || pad.buttons[0x138];
@@ -400,8 +470,6 @@ public final class InputBridge {
                 selectionNeedsNeutral = false;
             selectTriggerDown = lt && !selectionNeedsNeutral;
             button(1,!selectionNeedsNeutral && (selectTriggerDown || pad.buttons[0x130]));
-            key(KeyEvent.KEYCODE_H, pad.axis[17] < 0 || pad.buttons[0x220]);
-            key(KeyEvent.KEYCODE_F7, pad.axis[17] > 0 || pad.buttons[0x221]);
             key(KeyEvent.KEYCODE_DPAD_LEFT, pad.axis[2] < -10000);
             key(KeyEvent.KEYCODE_DPAD_RIGHT, pad.axis[2] > 10000);
             key(KeyEvent.KEYCODE_DPAD_UP, pad.axis[5] < -10000);
@@ -439,13 +507,16 @@ public final class InputBridge {
                 Runnable job;
                 while ((job = pending.poll()) != null) job.run();
                 status = "state " + (focused ? 1 : 0) + " " + (armed ? 1 : 0) + " " + Math.round(x) + " " + Math.round(y)
-                    + " " + (wheel && !wheelCancelled ? 1 : -1) + " " + choice;
+                    + " " + (wheels.mode==WheelState.Mode.GROUPS?2:wheels.mode==WheelState.Mode.COMMANDS?1:-1)
+                    + " " + wheels.choice+" "+wheels.progress(now)+" "+selectionRevision;
                 if (now - lastDiagnostic >= 200) {
                     File temp = new File(DIR, "state.tmp");
                     try (Writer out = new OutputStreamWriter(new FileOutputStream(temp), "UTF-8")) {
                         out.write("{\"focused\":" + focused + ",\"armed\":" + armed + ",\"x\":" + Math.round(x)
-                            + ",\"y\":" + Math.round(y) + ",\"wheel\":" + (wheel && !wheelCancelled)
-                            + ",\"choice\":" + choice + ",\"mouse\":" + mouseButtons + ",\"keys\":" + pressed.keySet() + "}");
+                            + ",\"y\":" + Math.round(y) + ",\"wheel\":" + (wheels.mode!=WheelState.Mode.NONE)
+                            + ",\"choice\":" + wheels.choice + ",\"wheelMode\":\""+wheels.mode+"\",\"progress\":"+wheels.progress(now)
+                            + ",\"groupRequests\":"+groupRequests+",\"lastGroup\":"+lastGroup+",\"lastGroupOperation\":\""+lastGroupOperation+"\""
+                            + ",\"mouse\":" + mouseButtons + ",\"keys\":" + pressed.keySet() + "}");
                     }
                     if (!temp.renameTo(new File(DIR, "state.json"))) throw new IOException("Cannot publish bridge state");
                     lastDiagnostic = now;

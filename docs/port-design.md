@@ -87,11 +87,19 @@ Background launch uses `nohup`. A reboot ends the helper and currently requires 
 
 ## Command coverage
 
+The [control group controls](control-groups.md) use the D-pad for groups 1 to 4
+and an RB wheel for all ten native groups. That document records the Android
+binary evidence, implemented input rules and remaining gameplay checks.
+
 The [README controls](../README.md) are implemented. RT opens an eight-command wheel. It consumes camera/cursor movement and selection input while held. Right stick chooses, A issues one command, and B cancels. Releasing RT dismisses the wheel. A cancelled or confirmed wheel stays dismissed until RT is released. LT and A must return to neutral after using the wheel before they can start another selection, preventing a held confirmation from clicking through to the game.
 
 The bottom panel has Villager, Settlement and Session pages. It opens original management windows rather than guessing available actions. The first tutorial confirms action-menu, save-window and basic villager-order paths. Building, professions, home/workplace assignment, roads, diplomacy and technology require later-tutorial and campaign checks.
 
-Remaining controls include groups and creation, same-profession selection, work-area targeting, selection modifiers, building/profession navigation, menu/text entry and a complete pause/speed/session audit. Test each against the Android game; Windows manual shortcuts are candidates, not proof of Android behavior.
+Saved group creation and recall use the original number-key shortcuts. Remaining
+checks include multi-unit group addition, group save/load, same-profession
+selection, work-area targeting, building/profession navigation, menu/text entry
+and a complete pause/speed/session audit. Test each against the Android game;
+Windows manual shortcuts are candidates, not proof of Android behavior.
 
 ## Touch and live game data
 
