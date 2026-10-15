@@ -11,7 +11,13 @@
 *.sgt
 *.mpg
 *.apk
+*.jar
+*.dex
+*.class
+*.so
 *.sav
 *.keystore
 *.jks
 __pycache__/
+.DS_Store
+Thumbs.db

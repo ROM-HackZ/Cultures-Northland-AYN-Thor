@@ -1,5 +1,8 @@
 # Northland compatibility results
 
+These are the earlier **Windows / GameHub** tests. The project now uses the
+owner's official Android game; see [Android controller results](android-controller.md).
+
 ## Current result
 
 Tests on October 14–15, 2026 used the owner's Steam installation and an AYN Thor running Android 13. Northland's first tutorial runs in GameHub Lite 5.1.8. Villager selection opens Knut's original needs and equipment panels. A new save appeared in the load list, and reloading returned to the tutorial with the game's “Game loaded” message.
