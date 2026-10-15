@@ -16,6 +16,8 @@ GameHub is useful for proving whether the original game runs on this device. Its
 
 The intended final route is a dedicated app, provided it runs Northland reliably. [Winlator app source](https://github.com/brunodev85/winlator-app) exposes its X server's pointer and keyboard injection, making it a concrete candidate for controller integration. The inspected reference revision is `3981d86`; it is currently only a local reference checkout.
 
+The first real-game comparison favors ARM64X/FEX: roughly 43–57 FPS in the tutorial, against 5–6 FPS in the tested x64/Box64 profile. A runtime fork must reproduce the faster result before it replaces GameHub. The Windows XInput probe now runs inside GameHub and receives its virtual controller's buttons and both sticks. Physical controls, input injection into Northland and a separate Android panel remain unproven. Test those boundaries with small prototypes before committing to the companion route or the dedicated runtime.
+
 [Open Northland](https://github.com/s-nems/open-northland) is an independent reimplementation. Its current [development documentation](https://github.com/s-nems/open-northland/blob/main/docs/DEVELOPMENT.md) describes a converted content pipeline rather than support for this original packed Northland install and its complete campaigns. It does not satisfy the current requirement to keep the original game.
 
 ## Proposed controller controls

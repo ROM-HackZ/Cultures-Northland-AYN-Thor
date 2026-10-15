@@ -4,6 +4,7 @@ import argparse
 import re
 import subprocess
 import time
+from pathlib import Path
 
 
 def main():
@@ -14,15 +15,31 @@ def main():
     parser.add_argument("--expect-package")
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("focus")
+    capture = commands.add_parser("capture", help="Save a physical display screenshot without device temp files")
+    capture.add_argument("--surface", required=True, type=int)
+    capture.add_argument("--out", required=True, type=Path)
     tap = commands.add_parser("tap")
     tap.add_argument("x", type=float)
     tap.add_argument("y", type=float)
+    double_tap = commands.add_parser("double-tap", help="Two taps without separate ADB connection delays")
+    double_tap.add_argument("x", type=float)
+    double_tap.add_argument("y", type=float)
     trackpad = commands.add_parser("trackpad", help="Move relative to GameHub's current cursor")
     trackpad.add_argument("dx", type=int)
     trackpad.add_argument("dy", type=int)
     trackpad.add_argument("--click", action="store_true")
     args = parser.parse_args()
     prefix = [args.adb] + (["-s", args.serial] if args.serial else [])
+
+    if args.command == "capture":
+        result = subprocess.run(prefix + ["exec-out", "screencap", "-p", "-d", str(args.surface)],
+                                check=True, capture_output=True)
+        if not result.stdout.startswith(b"\x89PNG\r\n\x1a\n"):
+            parser.error("Device did not return a PNG screenshot")
+        args.out.parent.mkdir(parents=True, exist_ok=True)
+        args.out.write_bytes(result.stdout)
+        print(f"Captured display surface {args.surface}: {args.out}")
+        return
 
     def adb(*values):
         return subprocess.run(prefix + list(values), check=True, capture_output=True, text=True).stdout
@@ -58,6 +75,10 @@ def main():
     # adb input already uses logical display coordinates. Applying the input
     # window's rotation again would turn a correct point into a wrong one.
     print(f"Logical tap: {args.x},{args.y}")
+    if args.command == "double-tap":
+        script = f"input -d {args.display} tap {round(args.x)} {round(args.y)}\n" * 2
+        subprocess.run(prefix + ["shell", "sh"], input=script, text=True, check=True)
+        return
     adb("shell", "input", "-d", str(args.display), "tap", str(round(args.x)), str(round(args.y)))
 
 
