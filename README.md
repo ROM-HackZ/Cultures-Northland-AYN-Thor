@@ -15,6 +15,8 @@ No root, modified game APK or PC game files needed.
 This is an early prototype running on a real Thor. Setup still needs a computer
 and a local build. There's no ready-to-install release yet.
 
+<img width="3024" height="4032" alt="fa4b050e-50fc-499f-9f01-1357de5a2539" src="https://github.com/user-attachments/assets/27f01517-8daf-4cdf-bc9e-2ee93e5e455a" />
+
 ## Controls
 
 | Button or stick | What it does |
