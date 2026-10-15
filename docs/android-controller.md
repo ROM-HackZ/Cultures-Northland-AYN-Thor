@@ -6,12 +6,15 @@ Tests on October 15, 2026 use official Android Northland 1.1 (16), package `com.
 
 | Check | Evidence |
 | --- | --- |
+| LT navigation-only | LT alone caused no clicks, captures or group recalls. LT + D-pad reached the toolbar wrench; A opened Options, then navigation reached X and A closed it. Captures reviewed in `artifacts/ui-nav-quiet/`. A + left-stick dragging continued while LT was pressed and released. [Navigation details and limits](ui-navigation.md) |
+| Current A selection | A now owns left-mouse selection and dragging. The A-held drag guard passed on the Thor. Earlier LT selection results below describe the previous mapping |
+| Left stick for both wheels | Installed build uses LS to highlight commands and group slots. Cursor coordinates stayed fixed while choosing; moving RS changed neither the wheel choice nor injected camera keys. RT + LS left + A opened the original Save window, then B closed it. Evidence: `artifacts/wheels-left-stick-groups/`, `wheels-left-stick-commands/`, `wheels-left-stick-confirm/`, `wheels-left-stick-close/` |
 | Native groups | Ctrl-number saved Knut and number recalled him in the official Android game. The companion's RB + hold Y saved him into the previously empty group 1; D-pad Up recalled him and repeated recall centered the camera. Native selection panels are visible in `artifacts/groups-quick/dpad-after-top.png` |
 | Four D-pad shortcuts | Up, Right, Down and Left requested groups 1, 2, 3 and 4 respectively. Each held direction, including a duplicate hat/button report, increased the request counter only once. Evidence is in `artifacts/groups-quick/` and `groups-quick-2/` through `groups-quick-4/` |
 | Group cancellation and input ownership | Cancelled replacement, a slot change during a held Y, diagonals, competing wheel openers and RB during an LT selection drag passed in `artifacts/groups-installed/`. The final simultaneous RT + RB + A check also injected no click, command or group operation (`artifacts/groups-final-both/`) |
 | Group touch controls and Add | Set displayed a separate confirmation, Cancel sent no request and Set with an empty selection cleared the spare test group. Adding Knut to that empty group then recalling it selected him again. Evidence: `artifacts/groups-touch/`, `groups-touch-empty/`, `groups-touch-add9/`, `groups-added9-recall/` |
 | Group hold interrupted by companion loss | Stopping only our companion during a Y replacement hold cancelled the wheel, released input and prevented a group operation. Reconnecting while the controls remained held waited for neutral. Northland's activity was not restarted (`artifacts/groups-disconnect/`) |
-| RT wheel regression | RT + right-stick left + A still opened the original Save window and B closed it (`artifacts/groups-rt-regression/`, `groups-rt-close/`) |
+| Earlier RT wheel regression | Before switching wheel navigation to LS, RT + right-stick left + A opened the original Save window and B closed it (`artifacts/groups-rt-regression/`, `groups-rt-close/`) |
 | Group test limits | Tutorial has one subject, Knut. Multi-unit addition preserving existing members, soldiers, mixed selections and group membership after save/load remain unverified. No mission was loaded or advanced for these checks |
 | Native membership rules | Moving Knut from group 9 to group 1 removed him from 9. Recalling 9 then cleared selection, while D-pad Up selected Knut again. Captures: `artifacts/groups-old-slot9/select-after-top.png`, `groups-final-recall1/dpad-after-top.png`. Group 1 is left available for the owner to try |
 | Actions after group recall | Recall cleared the earlier Actions page and required Refresh (`artifacts/groups-actions-invalidation/dpad-after-bottom.png`). An empty group's native selection stays empty rather than showing invented actions |
@@ -29,17 +32,17 @@ Tests on October 15, 2026 use official Android Northland 1.1 (16), package `com.
 | Synthetic left stick | Axis events move the overlay cursor and game hover location |
 | Synthetic X | Knut visibly walks to the cursor position |
 | Earlier synthetic Y / B / RB / R3 | Actions open and close, civilian selection worked with the earlier RB mapping, and zoom changes. RB now opens Groups; next civilian remains on the bottom screen |
-| Synthetic A | Left mouse press/release reaches injected state; full selection and drag need a dedicated gameplay pass |
+| Synthetic A | Left mouse press/release reaches injected state; A + left-stick dragging and LT-during-drag input ownership checked in `artifacts/ui-nav-quiet/` |
 | A held with left-stick motion and X | Mouse movement continues with left held; X does not interrupt the drag |
-| LT selection and left-stick drag | The game's selection rectangle is visible in the captured held state; trigger release ends the left-mouse hold |
-| LT and A overlapping | Releasing either control keeps selection held until both are released; analog threshold checks do not produce extra clicks |
-| LT digital button and focus loss | Digital L2 also selects; leaving the game releases the mouse and returning with LT held waits for neutral |
+| Earlier LT selection and left-stick drag | Before navigation replaced LT selection, the game's selection rectangle was visible in the captured held state; trigger release ended the left-mouse hold |
+| Earlier LT and A overlapping | Before the mapping change, releasing either control kept selection held until both were released; analog threshold checks produced no extra clicks |
+| Earlier LT digital button and focus loss | Digital L2 selected under the old mapping; leaving the game released the mouse and returning with LT held waited for neutral |
 | Physical drag before the stick swap | Owner confirmed LT + right-stick rectangle dragging worked. Cursor and drag now use the left stick; physical feel of this layout needs owner testing |
-| LT held still, then released | Synthetic L2 hold sent the selected Knut from his previous position to the terrain under the cursor; his blue selection heart and character window remained visible on arrival (`artifacts/controller-lt-arrived.png`) |
-| Short LT press and B deselect | B cleared Knut's selection and character windows; an 80 ms synthetic analog LT press over him selected him again (`artifacts/controller-lt-short-select.png`) |
+| Earlier LT held still, then released | Under the old mapping, synthetic L2 hold sent the selected Knut from his previous position to the terrain under the cursor; his blue selection heart and character window remained visible on arrival (`artifacts/controller-lt-arrived.png`) |
+| Earlier short LT press and B deselect | B cleared Knut's selection and character windows; an 80 ms synthetic analog LT press over him selected him again under the old mapping (`artifacts/controller-lt-short-select.png`) |
 | Original touch controls | Experimental two-finger shortcut removed at the owner's request; no touchscreen observer runs in the helper |
-| RT wheel | Appears, highlights Profession with right stick pointing right, and dismisses on RT release |
-| Wheel confirmation | RT + left on right stick + A opens Save; no left click leaks into the game |
+| Earlier RT wheel | Appeared, highlighted Profession with right stick pointing right, and dismissed on RT release. Both wheels now use LS |
+| Earlier wheel confirmation | RT + left on right stick + A opened Save; no left click leaked into the game. Both wheels now use LS |
 | Focus loss during pan | Earlier neutral/rearm check passed. Latest check after the stick swap released keys on focus loss, but returning failed and Northland restarted; resumed gameplay recovery needs investigation |
 | Companion stopped during pan | Keys release, controller injection disables, and the bottom launcher becomes visible again; reconnecting requires neutral |
 | Audible output, physical feel, long sessions | Awaiting owner testing |
@@ -48,7 +51,7 @@ The helper's state report establishes what it injected. Screenshots establish wh
 
 After the stick swap, synthetic checks confirmed left-stick cursor motion, right-stick panning, and a visible LT + left-stick rectangle. The latest app-switch check restarted Northland; a fresh Controls tutorial was opened afterward. Do not run app-switch checks in an unsaved play session.
 
-The game distinguishes a short left click from a stationary hold. To check LT orders, first select a villager and position the cursor over open terrain away from them, then run `lt-button`. This holds L2 long enough for the game's context click on release. Check movement and retained selection after arrival; the `lt-button` state assertion alone does not establish either. Use a short physical LT press to test selection instead.
+The game distinguishes a short left click from a stationary hold. A now supplies that input. To issue an order, select a villager, position the cursor over terrain, hold A still and release, or use X for an immediate right-click order. LT only navigates visible buttons. The obsolete LT selection cases have been removed from the controller test script.
 
 ## Repeat a check
 
@@ -57,13 +60,11 @@ Use an idle tutorial with all physical controls released. Start the companion an
 ```sh
 python scripts/verify-android-controller.py --serial DEVICE_SERIAL --case camera
 python scripts/verify-android-controller.py --serial DEVICE_SERIAL --case cursor
-python scripts/verify-android-controller.py --serial DEVICE_SERIAL --case civilian
 python scripts/verify-android-controller.py --serial DEVICE_SERIAL --case order
 python scripts/verify-android-controller.py --serial DEVICE_SERIAL --case drag
-python scripts/verify-android-controller.py --serial DEVICE_SERIAL --case lt-select
-python scripts/verify-android-controller.py --serial DEVICE_SERIAL --case lt-drag
-python scripts/verify-android-controller.py --serial DEVICE_SERIAL --case lt-button
-python scripts/verify-android-controller.py --serial DEVICE_SERIAL --case lt-focus
+python scripts/verify-ui-navigation.py --serial DEVICE_SERIAL --case hold
+python scripts/verify-ui-navigation.py --serial DEVICE_SERIAL --case toolbar
+python scripts/verify-ui-navigation.py --serial DEVICE_SERIAL --case drag
 python scripts/verify-android-controller.py --serial DEVICE_SERIAL --case actions
 python scripts/verify-android-controller.py --serial DEVICE_SERIAL --case back
 python scripts/verify-android-controller.py --serial DEVICE_SERIAL --case zoom

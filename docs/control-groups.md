@@ -54,13 +54,13 @@ Use the first layout, with a bottom-screen Groups page as an alternative.
 
 | Input | Action |
 | --- | --- |
-| D-pad Up | Recall group 1 |
-| D-pad Right | Recall group 2 |
-| D-pad Down | Recall group 3 |
-| D-pad Left | Recall group 4 |
+| D-pad Up without LT | Recall group 1 |
+| D-pad Right without LT | Recall group 2 |
+| D-pad Down without LT | Recall group 3 |
+| D-pad Left without LT | Recall group 4 |
 | Same direction again | Send recall again. Let Northland handle camera centering |
 | Hold RB | Open the group wheel and show the group controls on the bottom screen |
-| Right stick while RB is held | Highlight one of ten slots, ordered 1 to 9, then 0 |
+| Left stick while RB is held | Highlight one of ten slots, ordered 1 to 9, then 0 |
 | A in the group wheel | Recall the highlighted group |
 | Hold Y in the group wheel for about 0.7 seconds | Replace the highlighted group with the current selection |
 | X in the group wheel | Add the current selection to the highlighted group |
@@ -76,8 +76,11 @@ Next civilian stays on Villager, headquarters and the character list stay on
 Settlement. LT, A, X, B, LB, the sticks and the RT command wheel keep their normal
 behavior outside the group wheel.
 
-Example: box-select your archers with LT and the left stick. Hold RB, point the
-right stick at group 1 and hold Y until the progress completes. Release RB.
+Holding LT gives the D-pad to [UI navigation](ui-navigation.md). It cannot recall
+a group during navigation. Release the D-pad before recalling a group afterward.
+
+Example: box-select your archers with A and the left stick. Hold RB, point the
+left stick at group 1 and hold Y until the progress completes. Release RB.
 Later, D-pad Up recalls those archers. Select another archer, open the same
 slot and press X to add them without replacing the existing group.
 

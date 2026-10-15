@@ -18,6 +18,8 @@ public final class PanelService extends Service {
     volatile boolean running, connected, active, armed;
     volatile LocalSocket socket;
     volatile int cursorX = 960, cursorY = 540, wheel = -1, choice = -1, replaceProgress;
+    volatile boolean navigating;
+    volatile Rect navigationFocus;
     long selectionRevision=-1;
     WindowManager topManager, bottomManager;
     CursorView cursor;
@@ -103,12 +105,15 @@ public final class PanelService extends Service {
                             continue;
                         }
                         String[] fields = line.split(" ");
-                        if (fields.length != 9 || !fields[0].equals("state")) throw new IOException("Bad bridge state");
+                        if (fields.length != 14 || !fields[0].equals("state")) throw new IOException("Bad bridge state");
                         active = fields[1].equals("1"); armed = fields[2].equals("1");
                         cursorX = Integer.parseInt(fields[3]); cursorY = Integer.parseInt(fields[4]);
                         wheel = Integer.parseInt(fields[5]); choice = Integer.parseInt(fields[6]);
                         replaceProgress=Integer.parseInt(fields[7]);
                         long revision=Long.parseLong(fields[8]);
+                        navigating=fields[9].equals("1");
+                        int l=Integer.parseInt(fields[10]),t=Integer.parseInt(fields[11]),r=Integer.parseInt(fields[12]),b=Integer.parseInt(fields[13]);
+                        navigationFocus=l>=0 && t>=0 && r>l && b>t && r<=1920 && b<=1080?new Rect(l,t,r,b):null;
                         if(revision!=selectionRevision) {
                             if(selectionRevision>=0) handler.post(() -> deck.invalidateActions());
                             selectionRevision=revision;
@@ -122,7 +127,8 @@ public final class PanelService extends Service {
                     }
                 } finally { s.close(); }
             } catch (Exception e) { /* A missing bridge is a visible offline state. */ }
-            connected = active = armed = false; wheel = -1;replaceProgress=0;selectionRevision=-1;commands.clear();
+            connected = active = armed = navigating = false;navigationFocus=null;
+            wheel = -1;replaceProgress=0;selectionRevision=-1;commands.clear();
             handler.post(() -> { deck.invalidateActions();deck.confirmGroup=false;deck.actionError="Connection lost. Refresh after reconnecting."; });
             try { if (socket != null) socket.close(); } catch (IOException ignored) { }
             SystemClock.sleep(750);
@@ -143,6 +149,13 @@ public final class PanelService extends Service {
         @Override protected void onDraw(Canvas c) {
             if (!connected || !active || !armed) return;
             c.save(); c.scale(getWidth() / 1920f, getHeight() / 1080f);
+            Rect focus=navigationFocus;
+            if(navigating && focus!=null) {
+                paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(6);paint.setColor(Color.BLACK);
+                c.drawRoundRect(focus.left-3,focus.top-3,focus.right+3,focus.bottom+3,6,6,paint);
+                paint.setStrokeWidth(3);paint.setColor(0xffa0e6ff);
+                c.drawRoundRect(focus.left-3,focus.top-3,focus.right+3,focus.bottom+3,6,6,paint);
+            }
             paint.setStyle(Paint.Style.STROKE); paint.setStrokeWidth(6); paint.setColor(Color.BLACK);
             c.drawCircle(cursorX, cursorY, 13, paint);
             paint.setStrokeWidth(3); paint.setColor(0xffffdc86); c.drawCircle(cursorX, cursorY, 13, paint);
@@ -170,7 +183,7 @@ public final class PanelService extends Service {
             paint.setColor(0xffffdc86); paint.setTextSize(32);
             c.drawText(groups?"GROUPS":"COMMANDS", 960, 490, paint);
             paint.setColor(Color.WHITE); paint.setTextSize(24);
-            c.drawText("Right stick to choose", 960, 532, paint);
+            c.drawText("Left stick to choose", 960, 532, paint);
             c.drawText(groups?"A select   X add":"A confirm   B cancel", 960, 570, paint);
             if(groups) {
                 c.drawText("Hold Y to replace   B cancel",960,608,paint);
@@ -293,7 +306,7 @@ public final class PanelService extends Service {
                 tile(c,l,t,l+216,t+125,i==selected?0xff816431:0xff263b49);
                 text(c,"Group "+GroupCommand.slotAt(i),l+24,t+72,31,0xfff5eddd);
             }
-            text(c,selected>=0?"Group "+GroupCommand.slotAt(selected):"Choose a group with the right stick",48,650,32,0xffffd787);
+            text(c,selected>=0?"Group "+GroupCommand.slotAt(selected):"Choose a group with the left stick",48,650,32,0xffffd787);
             String[] actions=controller?new String[]{"A  Select", "Hold Y  Replace", "X  Add selection"}:
                 new String[]{"Select group", "Set from selection", "Add selection"};
             for(int i=0;i<3;i++) {
@@ -320,6 +333,7 @@ public final class PanelService extends Service {
             text(c, "THOR COMMAND DECK", 48, 115, 23, 0xff91a9b9);
             String state = !connected ? "BRIDGE OFFLINE — start from computer" :
                 !active ? "Waiting for Northland on the top screen" : !armed ? "Release sticks and buttons to enable controls" :
+                navigating?"LT NAVIGATION - D-pad moves between buttons; A clicks":
                 showingCommands()?(snapshot!=null && snapshot.status==ActionMenuSnapshot.Status.READY?
                     snapshot.unknown>0?"ACTIONS - "+snapshot.unknown+" unread; use the original menu for those":
                     "ACTIONS - checked when opened; Refresh after changing selection":"ACTIONS"):"CONTROLLER CONNECTED";
@@ -336,9 +350,9 @@ public final class PanelService extends Service {
                 tile(c,left,top,left+372,top+125,pressedCell==i?0xff665638:0xff263b49);
                 text(c,labels[tab][i],left+24,top+73,30,active&&armed?0xfff5eddd:0xff8596a0);
             }
-            text(c,"LS  Cursor     RS  Camera     LT  Tap select / confirm",48,810,25,0xffd3e1e9);
-            text(c,"Hold LT, then release: order    ·    LT + LS: drag select",48,854,25,0xffd3e1e9);
-            text(c,"Hold RT: wheel · RS chooses · A confirms · B cancels",48,908,26,0xffffd787);
+            text(c,"LS  Cursor     RS  Camera     A  Select / confirm",48,810,25,0xffd3e1e9);
+            text(c,"A + LS: drag select    ·    Hold LT + D-pad: jump to buttons",48,854,25,0xffd3e1e9);
+            text(c,"Hold RT: wheel · LS chooses · A confirms · B cancels",48,908,26,0xffffd787);
             text(c,"B Back · X Order · Y Actions · RB Groups · D-pad Groups 1-4",48,951,24,0xff91a9b9);
             text(c,"Hold LB to add to selection. Top-screen touch is unchanged.",48,1024,22,0xff91a9b9);
             c.restore();

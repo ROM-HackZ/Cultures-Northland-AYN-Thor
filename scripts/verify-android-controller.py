@@ -17,7 +17,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--adb", default="adb")
     parser.add_argument("--serial")
-    parser.add_argument("--case", required=True, choices=("camera", "cursor", "select", "order", "drag", "lt-select", "lt-drag", "lt-button", "lt-focus", "actions", "back", "civilian", "zoom", "wheel", "wheel-confirm", "focus", "panel-loss"))
+    parser.add_argument("--case", required=True, choices=("camera", "cursor", "select", "order", "drag", "actions", "back", "zoom", "wheel", "wheel-confirm", "focus", "panel-loss"))
     parser.add_argument("--out", type=Path, default=Path("artifacts/controller-check"))
     parser.add_argument("--pan-direction", choices=("left", "right"), default="right",
                         help="Camera test direction; choose away from the current map edge")
@@ -54,7 +54,7 @@ def main():
         parser.error("Exactly one Odin Controller is required")
     device = matches[0]
     initial = await_state(lambda s: s["focused"] and s["armed"])
-    if initial["mouse"] or initial["keys"] or initial["wheel"]:
+    if initial["mouse"] or initial["keys"] or initial["wheel"] or initial.get("navigation",False):
         parser.error("Release all controller controls before testing")
     args.out.mkdir(parents=True, exist_ok=True)
 
@@ -73,18 +73,12 @@ def main():
         "select": [(1, 0x130, 1)],
         "order": [(1, 0x133, 1)],
         "drag": [(1, 0x130, 1), (3, 0, 20000)],
-        "lt-select": [(3, 10, 32767), (1, 0x130, 0)],
-        "lt-button": [(1, 0x138, 1)],
-        "lt-drag": [(3, 10, 32767), (3, 0, -20000 if initial["x"] > 1200 else 20000),
-                    (3, 1, -18000 if initial["y"] > 700 else 18000)],
-        "lt-focus": [(3, 10, 32767)],
         "actions": [(1, 0x134, 1)],
         "back": [(1, 0x131, 1)],
-        "civilian": [(1, 0x137, 1)],
         "zoom": [(1, 0x13e, 1)],
-        "wheel": [(3, 9, 32767), (3, 2, 32767)],
+        "wheel": [(3, 9, 32767), (3, 0, 32767)],
         "focus": [(3, 2, 20000)],
-        "wheel-confirm": [(3, 9, 32767), (3, 2, -32767)],
+        "wheel-confirm": [(3, 9, 32767), (3, 0, -32767)],
         "panel-loss": [(3, 2, 20000)],
     }
     events = cases[args.case]
@@ -104,33 +98,17 @@ def main():
         if args.case in ("camera", "focus", "panel-loss"):
             pan_key = 21 if args.case == "camera" and args.pan_direction == "left" else 22
             held = await_state(lambda s: pan_key in s["keys"])
-        elif args.case in ("lt-select", "lt-button", "lt-focus"):
-            held = await_state(lambda s: s["mouse"] == 1 and not s["wheel"])
-            if args.case == "lt-select":
-                checks = {"lt-held": held}
-                # A release must not end an LT drag, nor vice versa.
-                for name, values, mask in (
-                    ("a-pressed-with-lt", [(1, 0x130, 1)], 1),
-                    ("a-released-with-lt", [(1, 0x130, 0)], 1),
-                    ("lt-between-thresholds", [(3, 10, 10000)], 1),
-                    ("lt-released", [(3, 10, 0)], 0),
-                    ("lt-below-press-threshold", [(3, 10, 10000)], 0),
-                    ("lt-pressed-again", [(3, 10, 32767)], 1),
-                    ("a-holds-too", [(1, 0x130, 1)], 1),
-                    ("lt-released-with-a-held", [(3, 10, 0)], 1),
-                ):
-                    emit(values)
-                    time.sleep(.25)
-                    checks[name] = await_state(lambda s: s["mouse"] == mask and not s["wheel"])
-                held = checks
-        elif args.case == "lt-drag":
-            held = await_state(lambda s: s["mouse"] == 1 and not s["wheel"]
-                               and abs(s["x"] - initial["x"]) > 10 and abs(s["y"] - initial["y"]) > 10)
         elif args.case == "cursor":
             held = await_state(lambda s: s["x"] > initial["x"])
         elif args.case in ("wheel", "wheel-confirm"):
             choice = 6 if args.case == "wheel-confirm" else 2
             held = await_state(lambda s: s["wheel"] and s["choice"] == choice)
+            assert (held["x"],held["y"])==(initial["x"],initial["y"]), "Left stick moved cursor under the command wheel"
+            if args.case=="wheel":
+                events.extend([(3,2,-32767),(3,5,32767)])
+                emit(events[-2:]);time.sleep(.3)
+                held=state()
+                assert held["choice"]==choice and not held["keys"] and not held["mouse"], "Right stick changed wheel choice or leaked input"
             if args.case == "wheel-confirm":
                 emit([(1, 0x130, 1)])
                 try:
@@ -149,11 +127,11 @@ def main():
             finally:
                 emit([(1, 0x133, 0)])
         else:
-            key = {"actions": 62, "back": 111, "civilian": 56, "zoom": 54}[args.case]
+            key = {"actions": 62, "back": 111, "zoom": 54}[args.case]
             held = await_state(lambda s: key in s["keys"])
         time.sleep(.35)
         capture("held")
-        if args.case in ("focus", "lt-focus"):
+        if args.case == "focus":
             shell("am", "start", "--display", "0", "-n", "org.northland.thor/.SetupActivity")
             return_to_game = True
             away = await_state(lambda s: not s["focused"] and not s["armed"] and not s["keys"] and not s["mouse"])

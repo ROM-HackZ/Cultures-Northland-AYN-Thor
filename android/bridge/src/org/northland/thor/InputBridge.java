@@ -57,8 +57,11 @@ public final class InputBridge {
     Process reader;
     LocalServerSocket server;
     NativeActions nativeActions;
+    NativeNavigation navigation;
+    final DirectionRepeat navigationDirections=new DirectionRepeat();
+    boolean navigationTriggerDown,navigationActive,navigationBlocked;
     volatile LocalSocket panel;
-    volatile String status = "state 0 0 960 540 -1 -1 0 0";
+    volatile String status = "state 0 0 960 540 -1 -1 0 0 0 -1 -1 -1 -1";
     long lastDiagnostic;
     volatile boolean wheel;
     final WheelState wheels=new WheelState();
@@ -66,7 +69,7 @@ public final class InputBridge {
     long selectionRevision;
     int groupRequests,lastGroup=-1;
     String lastGroupOperation="";
-    boolean selectTriggerDown, selectionNeedsNeutral;
+    boolean selectionNeedsNeutral;
     int choice = -1;
     static final String[] WHEEL = {"actions", "build", "profession", "home", "workplace", "characters", "save", "cancel"};
 
@@ -77,6 +80,7 @@ public final class InputBridge {
         final int allowedUid = Integer.parseInt(uid.group(1));
         server = new LocalServerSocket("northland-thor-v1");
         nativeActions=new NativeActions(this);
+        navigation=new NativeNavigation(this);
         Thread accept = new Thread(() -> {
             while (running) {
                 try {
@@ -404,11 +408,13 @@ public final class InputBridge {
                 return;
             }
             switch (code) {
-                case 0x130: // A remains an alternative to LT; either can hold selection.
-                    if (!selectionNeedsNeutral) button(1,down || selectTriggerDown);
+                case 0x130: // A owns selection and dragging; LT never presses the mouse.
+                    if (!selectionNeedsNeutral) button(1,down);
+                    if(!down) navigation.clear();
                     break;
                 case 0x133: button(2, down); break; // X / BTN_NORTH
                 case 0x131:
+                    navigation.clear();
                     key(KeyEvent.KEYCODE_ESCAPE, down);break; // B
                 case 0x134: key(KeyEvent.KEYCODE_SPACE, down); break; // Y
                 case 0x136: key(KeyEvent.KEYCODE_SHIFT_LEFT, down); break; // LB
@@ -432,9 +438,9 @@ public final class InputBridge {
         WheelState.Mode before=wheels.mode;
         wheels.update(pad.axis[9]>12000 || pad.buttons[0x139],pad.buttons[0x137],
             mouseButtons!=0 || pad.axis[10]>8000 || pad.buttons[0x138],
-            pad.axis[2]/32767f,pad.axis[5]/32767f);
+            pad.axis[0]/32767f,pad.axis[1]/32767f);
         if(before==WheelState.Mode.NONE && wheels.mode!=WheelState.Mode.NONE) {
-            release();selectTriggerDown=false;selectionNeedsNeutral=true;
+            release();selectionNeedsNeutral=true;
         }
         wheel=wheels.capturesInput;choice=wheels.choice;
     }
@@ -442,7 +448,9 @@ public final class InputBridge {
     void frame(float dt) throws Exception {
         synchronized (pad) {
             if (!focused || panel == null) {
-                armed = false; wheel = false; wheels.reset();selectTriggerDown = false;
+                armed = false; wheel = false; wheels.reset();
+                navigationTriggerDown=navigationActive=navigationBlocked=false;
+                navigationDirections.reset();navigation.clear();
                 directions.update(false,false,false,false,false);
                 selectionNeedsNeutral = true; release(); return;
             }
@@ -451,7 +459,16 @@ public final class InputBridge {
                 if (armed) selectionNeedsNeutral = false;
                 return;
             }
+            boolean lt=pad.axis[10]>(navigationTriggerDown?8000:12000) || pad.buttons[0x138];
+            if(!lt) {
+                navigationActive=navigationBlocked=false;navigationDirections.reset();navigation.clear();
+            } else if(!navigationTriggerDown) {
+                navigationBlocked=mouseButtons!=0 || pad.buttons[0x130] || wheels.capturesInput;
+                navigationActive=!navigationBlocked;
+            }
+            navigationTriggerDown=lt;
             updateWheels();
+            if(wheel) { navigationActive=false;navigationBlocked=true;navigationDirections.reset();navigation.clear(); }
             int quick=directions.update(pad.axis[17]<0 || pad.buttons[0x220],pad.axis[16]>0 || pad.buttons[0x223],
                 pad.axis[17]>0 || pad.buttons[0x221],pad.axis[16]<0 || pad.buttons[0x222],
                 !wheel && mouseButtons==0 && pad.axis[10]<8000 && !pad.buttons[0x138] && !pad.buttons[0x130]);
@@ -464,18 +481,23 @@ public final class InputBridge {
             }
             if(quick>=0) performGroup(new GroupCommand(GroupCommand.Operation.SELECT,quick));
             key(KeyEvent.KEYCODE_SHIFT_LEFT, pad.buttons[0x136]);
-            // Hysteresis avoids repeated clicks around the analog trigger threshold.
-            boolean lt = pad.axis[10] > (selectTriggerDown ? 8000 : 12000) || pad.buttons[0x138];
-            if (selectionNeedsNeutral && pad.axis[10] < 8000 && !pad.buttons[0x138] && !pad.buttons[0x130])
+            if (selectionNeedsNeutral && !pad.buttons[0x130])
                 selectionNeedsNeutral = false;
-            selectTriggerDown = lt && !selectionNeedsNeutral;
-            button(1,!selectionNeedsNeutral && (selectTriggerDown || pad.buttons[0x130]));
-            key(KeyEvent.KEYCODE_DPAD_LEFT, pad.axis[2] < -10000);
-            key(KeyEvent.KEYCODE_DPAD_RIGHT, pad.axis[2] > 10000);
-            key(KeyEvent.KEYCODE_DPAD_UP, pad.axis[5] < -10000);
-            key(KeyEvent.KEYCODE_DPAD_DOWN, pad.axis[5] > 10000);
+            button(1,!selectionNeedsNeutral && pad.buttons[0x130]);
+            key(KeyEvent.KEYCODE_DPAD_LEFT, !navigationActive && pad.axis[2] < -10000);
+            key(KeyEvent.KEYCODE_DPAD_RIGHT, !navigationActive && pad.axis[2] > 10000);
+            key(KeyEvent.KEYCODE_DPAD_UP, !navigationActive && pad.axis[5] < -10000);
+            key(KeyEvent.KEYCODE_DPAD_DOWN, !navigationActive && pad.axis[5] > 10000);
+            int step=navigationDirections.update(pad.axis[17]<0 || pad.buttons[0x220],pad.axis[16]>0 || pad.buttons[0x223],
+                pad.axis[17]>0 || pad.buttons[0x221],pad.axis[16]<0 || pad.buttons[0x222],
+                navigationActive && mouseButtons==0 && !pad.buttons[0x130],SystemClock.uptimeMillis());
+            if(step>=0) {
+                try { navigation.move(step); }
+                catch(Exception e) { navigation.clear();System.err.println("UI navigation unavailable: "+e.getClass().getSimpleName()); }
+            }
             float dx = stick(pad.axis[0]), dy = stick(pad.axis[1]);
             if (dx != 0 || dy != 0) {
+                navigation.clear();
                 x = Math.max(1, Math.min(1918, x + dx * 1050 * dt));
                 y = Math.max(1, Math.min(1078, y + dy * 1050 * dt));
                 mouse(mouseButtons == 0 ? MotionEvent.ACTION_HOVER_MOVE : MotionEvent.ACTION_MOVE);
@@ -506,9 +528,11 @@ public final class InputBridge {
                 frame(Math.min(.05f, (now - last) / 1000f));
                 Runnable job;
                 while ((job = pending.poll()) != null) job.run();
+                MenuGeometry.Box focus=navigationActive?navigation.target:null;
                 status = "state " + (focused ? 1 : 0) + " " + (armed ? 1 : 0) + " " + Math.round(x) + " " + Math.round(y)
                     + " " + (wheels.mode==WheelState.Mode.GROUPS?2:wheels.mode==WheelState.Mode.COMMANDS?1:-1)
-                    + " " + wheels.choice+" "+wheels.progress(now)+" "+selectionRevision;
+                    + " " + wheels.choice+" "+wheels.progress(now)+" "+selectionRevision
+                    + " "+(navigationActive?1:0)+" "+(focus==null?"-1 -1 -1 -1":focus.left+" "+focus.top+" "+focus.right+" "+focus.bottom);
                 if (now - lastDiagnostic >= 200) {
                     File temp = new File(DIR, "state.tmp");
                     try (Writer out = new OutputStreamWriter(new FileOutputStream(temp), "UTF-8")) {
@@ -516,6 +540,9 @@ public final class InputBridge {
                             + ",\"y\":" + Math.round(y) + ",\"wheel\":" + (wheels.mode!=WheelState.Mode.NONE)
                             + ",\"choice\":" + wheels.choice + ",\"wheelMode\":\""+wheels.mode+"\",\"progress\":"+wheels.progress(now)
                             + ",\"groupRequests\":"+groupRequests+",\"lastGroup\":"+lastGroup+",\"lastGroupOperation\":\""+lastGroupOperation+"\""
+                            + ",\"navigation\":"+navigationActive+",\"navigationRequests\":"+navigation.requests+",\"navigationMillis\":"+navigation.elapsed
+                            + ",\"navigationTargets\":"+navigation.geometry.targets.size()
+                            + ",\"navigationTarget\":"+(focus==null?"null":"["+focus.left+","+focus.top+","+focus.right+","+focus.bottom+"]")
                             + ",\"mouse\":" + mouseButtons + ",\"keys\":" + pressed.keySet() + "}");
                     }
                     if (!temp.renameTo(new File(DIR, "state.json"))) throw new IOException("Cannot publish bridge state");

@@ -21,22 +21,32 @@ and a local build. There's no ready-to-install release yet.
 | --- | --- |
 | Left stick | Move the cursor. Push gently for finer movement |
 | Right stick | Pan the map |
-| LT or A | Tap to select or confirm. Hold and move the left stick to draw a selection box |
-| LT or A held still | Use the game's original hold action. Over terrain, hold for about half a second and release to issue an order |
+| A | Tap to select or confirm. Hold and move the left stick to draw a selection box |
+| A held still | Use the game's original hold action. Over terrain, hold for about half a second and release to issue an order |
+| Hold LT + D-pad | Jump the cursor between visible game buttons. Press A to click |
 | X | Issue an order at the cursor immediately |
 | B | Deselect, cancel, go back or close the current window |
 | Y | Open the selected character's original action menu |
-| LB | Hold to add to a selection with LT or A |
+| LB | Hold to add to a selection with A |
 | RB | Hold for the group wheel. The group controls are below |
-| RT | Hold for the command wheel. Choose with the right stick, press A to confirm or B to cancel |
+| RT | Hold for the command wheel. Choose with the left stick, press A to confirm or B to cancel |
 | R3 | Cycle zoom levels |
-| D-pad Up / Right / Down / Left | Select group 1 / 2 / 3 / 4. Select again to center the camera |
+| D-pad Up / Right / Down / Left, without LT | Select group 1 / 2 / 3 / 4. Select again to center the camera |
 | Start | Pause |
 | Select | Toggle the game's map |
 
-To move someone, tap LT over them, move the cursor to the destination, then hold
-LT still and release. They stay selected. X skips the hold and sends the order
-straight away. Holding LT over a character opens their action menu instead.
+To move someone, tap A over them, move the cursor to the destination, then hold
+A still and release. They stay selected. X skips the hold and sends the order
+straight away. Holding A over a character opens their action menu instead.
+
+Hold LT when you want to reach a small button without steering the cursor all
+the way over. D-pad directions jump between buttons, and a blue outline shows
+where A will click. Holding a direction repeats the jumps. LT itself never clicks.
+
+This works with the left toolbar and the framed buttons in the checked game
+windows. Recognized popups keep navigation inside them. It reads the visible UI,
+so unusual or highlighted buttons can be missed. The left stick and touch are
+still available. [How snapping works and what we've checked](docs/ui-navigation.md).
 
 The RT wheel has Actions, Build, Profession, Assign home, Workplace, Characters,
 Save and Back. Save opens the game's save window so you can choose a slot.
@@ -73,7 +83,7 @@ is now your saved group. You can get it back without finding everyone again.
 
 | While holding RB | What it does |
 | --- | --- |
-| Right stick | Choose a group slot |
+| Left stick | Choose a group slot |
 | A | Select that group |
 | Hold Y until the bar fills | Save your selected units into that slot, replacing its old group |
 | X | Add your selected units to the group |
@@ -156,6 +166,7 @@ buttons before returning to play.
 | --- | --- |
 | Game and displays | Original Android tutorial running on the top screen, companion controls on the bottom |
 | Controller input | Cursor, camera, selection boxes, orders, zoom and wheel confirmation checked through the Thor's controller input path |
+| LT button navigation | Toolbar snapping, opening and closing Options with A, and keeping A drags intact checked on the Thor. Other popup layouts still need playtesting |
 | Character actions | Civilian and builder menus checked, including profession, equipment and building-site targeting. Some screen conditions can hide a button from recognition |
 | Stable action list | Camera movement and closing the original menu leave the bottom buttons unchanged. Refresh with no selection clears the list |
 | Saved groups | Saving and recalling Knut, camera centering, adding him to an empty group, touch controls and cancellation checked. Multi-unit armies and group save/load still need testing |
@@ -183,6 +194,7 @@ version and pictures of both screens if they help.
 | `scripts/android-controller.py` | Install, show, start and stop the companion and helper |
 | `scripts/verify-android-controller.py` | Device checks that record input state and both screens |
 | `scripts/verify-control-groups.py` | Group wheel, D-pad and bottom-screen group checks on the Thor |
+| `scripts/verify-ui-navigation.py` | LT snapping, popup clicks and A-drag protection checks on the Thor |
 | `tests/android/` | Local checks for action lists, menu recognition and message handling |
 | `docs/` | Design notes, device results and the earlier Windows experiment |
 

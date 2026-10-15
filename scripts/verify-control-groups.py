@@ -17,7 +17,7 @@ def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--adb',default='adb')
     p.add_argument('--serial')
-    p.add_argument('--case',required=True,choices=('wheel','select','replace','add','cancel-replace','change-slot','dpad','diagonal','drag','conflict','both','panel-loss',
+    p.add_argument('--case',required=True,choices=('wheel','other-stick','select','replace','add','cancel-replace','change-slot','dpad','diagonal','drag','conflict','both','panel-loss',
                                                 'touch-select','touch-set','touch-add','touch-cancel'))
     p.add_argument('--slot',type=int,choices=range(10),default=9)
     p.add_argument('--out',type=Path,default=Path('artifacts/control-groups'))
@@ -39,7 +39,7 @@ def main():
     devices=re.findall(r'add device \d+: (/dev/input/event\d+)\s+name:\s+"([^"]+)"',shell('getevent','-lp'))
     nodes=[node for node,name in devices if name=='Odin Controller']
     assert len(nodes)==1,'Expected one Odin Controller'
-    initial=wait(lambda s:s['focused'] and s['armed'] and not s['mouse'] and not s['keys'] and not s['wheel'])
+    initial=wait(lambda s:s['focused'] and s['armed'] and not s['mouse'] and not s['keys'] and not s['wheel'] and not s.get('navigation',False))
     assert 'groupRequests' in initial,'Install the group-controls build first'
     touched=set();evidence={};panel_stopped=False
     def emit(values):
@@ -54,7 +54,7 @@ def main():
             (args.out/f'{args.case}-{phase}-{name}.png').write_bytes(data)
     def point(slot):
         angle=((slot+9)%10)*math.pi/5
-        return [(3,2,round(math.sin(angle)*32767)),(3,5,round(-math.cos(angle)*32767))]
+        return [(3,0,round(math.sin(angle)*32767)),(3,1,round(-math.cos(angle)*32767))]
     args.out.mkdir(parents=True,exist_ok=True)
     capture('before')
     try:
@@ -91,7 +91,7 @@ def main():
             assert not evidence['blocked']['mouse'] and not evidence['blocked']['keys'] and evidence['blocked']['wheelMode']=='NONE'
             assert evidence['blocked']['groupRequests']==initial['groupRequests']
         elif args.case=='drag':
-            emit([(3,10,32767),(3,0,12000)])
+            emit([(1,0x130,1),(3,0,12000)])
             wait(lambda s:s['mouse']==1);time.sleep(.3)
             emit([(3,0,0),(1,0x137,1)])
             evidence['drag']=wait(lambda s:s['mouse']==1 and s['wheelMode']=='NONE')
@@ -100,8 +100,15 @@ def main():
             emit([(1,0x137,1)]+point(args.slot))
             evidence['wheel']=wait(lambda s:s['wheelMode']=='GROUPS' and s['choice']==(args.slot+9)%10)
             assert not evidence['wheel']['mouse'] and not evidence['wheel']['keys'],'Wheel leaked game input'
+            assert (evidence['wheel']['x'],evidence['wheel']['y'])==(initial['x'],initial['y']),'Left stick moved the cursor under the wheel'
             capture('wheel')
-            if args.case in ('replace','cancel-replace','change-slot','panel-loss'):
+            if args.case=='other-stick':
+                emit([(3,2,32767),(3,5,32767)]);time.sleep(.5)
+                evidence['right-stick']=state()
+                assert evidence['right-stick']['choice']==evidence['wheel']['choice'],'Right stick changed the group choice'
+                assert not evidence['right-stick']['keys'] and not evidence['right-stick']['mouse'],'Right stick leaked game input'
+                assert (evidence['right-stick']['x'],evidence['right-stick']['y'])==(initial['x'],initial['y'])
+            elif args.case in ('replace','cancel-replace','change-slot','panel-loss'):
                 emit([(1,0x134,1)])
                 evidence['progress']=wait(lambda s:s['progress']>0)
                 if args.case=='cancel-replace':emit([(1,0x131,1)])
