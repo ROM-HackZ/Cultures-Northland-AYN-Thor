@@ -12,10 +12,10 @@ You need your own copy of [Cultures: Northland for Android](https://play.google.
 The companion runs alongside the purchased app and leaves its saves alone.
 No root, modified game APK or PC game files needed.
 
-This is an early prototype running on a real Thor. You can activate the controls
-over USB from a computer, or on the Thor using Shizuku. That second option needs
-three apps: Northland, our Northland Thor companion, and Shizuku. Shizuku gives
-the companion permission to send controls into the game.
+This is an early prototype running on a real Thor. Setup now lives in our app.
+Pair Northland Thor with Android once, then tap **Activate controls** when you
+need it. No Shizuku or root. You still need Wi-Fi and Android's Wireless debugging
+for activation. USB setup from a computer works too.
 
 Builds can be packed into a setup ZIP. There isn't a published GitHub release yet.
 
@@ -119,7 +119,7 @@ Install your purchased Android game first, then choose how to set up the control
 | Route | What you need |
 | --- | --- |
 | Computer setup | Python 3.11 or newer with Tk, Android Platform Tools and a USB cable. Shizuku isn't needed |
-| On the Thor | Our APK, Shizuku and Wi-Fi. Pair once, then start Shizuku and activate our controls after each reboot |
+| On the Thor | Our APK and Wi-Fi. Pair our app once, then activate controls after each reboot |
 
 ### Setup window
 
@@ -139,34 +139,41 @@ and activation have been checked. The macOS and Linux windows still need testing
 The first setup has a few Android permission steps. You only do the pairing once
 unless Android forgets it.
 
-1. Install the purchased Northland game, our `northland-panel.apk`, and
-   [Shizuku](https://shizuku.rikka.app/download/). Our app appears as **Northland Thor**.
+1. Install the purchased Northland game and our `northland-panel.apk`.
+   Our app appears as **Northland Thor**.
 2. Connect the Thor to Wi-Fi and enable **Developer options > Wireless debugging**
    in Android's settings. Allow the current network when asked.
-3. Open Shizuku and choose **Pairing** under **Start via Wireless debugging**.
-   Allow its notifications. Open Android's **Pair device with pairing code**
-   screen, then enter that code in Shizuku's notification while the screen stays open.
-4. Return to Shizuku and tap **Start** under **Start via Wireless debugging**.
-5. Open **Northland Thor**, allow it to display over other apps, then tap
-   **Activate controls**. Allow its Shizuku access when prompted.
+3. Open **Northland Thor**, allow its notifications, and tap **Pair wireless
+   activation**. Follow its button to Developer options, open **Wireless debugging**,
+   then **Pair device with pairing code**.
+4. Keep Android's code window open. Pull down notifications, expand **Northland
+   Thor setup**, tap **Enter pairing code**, enter the six digits and send.
+5. Once it says **Paired**, return to Northland Thor. Allow it to display over
+   other apps, then tap **Activate controls**.
 6. Wait for **Controls are active**, then tap **Open / return to Northland**.
    Release the buttons and sticks before playing.
 
 Our APK includes the helper. You don't need the separate JAR for this route.
+If you used the earlier Shizuku build, pair our app once too. Its pairing is separate.
 
 ### After a reboot
 
 | Your setup | What to do |
 | --- | --- |
-| On the Thor with Shizuku | Connect to Wi-Fi, enable Wireless debugging if Android turned it off, then open Shizuku and tap its Wireless debugging **Start** button. Open Northland Thor, tap **Activate controls**, then **Open / return to Northland** |
+| On the Thor | Connect to Wi-Fi, enable Wireless debugging if Android turned it off, then open Northland Thor, tap **Activate controls**, then **Open / return to Northland** |
 | USB from a computer | Plug in the Thor, open the setup window and click **Activate installed app**, then **Open game** |
 
-You don't need to reinstall or rebuild after each reboot. Shizuku pairing and
-permissions normally carry over. If it keeps searching, toggle Wireless debugging
-off and back on, allow the network, then return to Shizuku.
+You don't need to reinstall or rebuild after each reboot. Android normally keeps
+the pairing. If it keeps searching, enable Wireless debugging, allow the network,
+then return to Northland Thor and tap **Activate controls** again. This restarts
+the check rather than leaving the previous search running.
 
-Pairing, restarting Shizuku over Wireless debugging and activating our controls
-have passed on the Thor. A complete device reboot is still untested.
+Reboot activation now works on the test Thor. Turn Wireless debugging back on,
+tap **Activate controls**, and you're back in. Pairing carries over, so you
+don't need another code each time. I've checked this after a full reboot.
+
+Activate shows its progress in our app. Once you've paired, another permission
+popup isn't expected. A notification sound alone doesn't mean controls are active.
 
 The [setup guide](docs/setup.md) covers pairing, the setup window and local bundles.
 
@@ -181,8 +188,8 @@ bash scripts/build-android.sh
 ```
 
 The build creates `artifacts/android/northland-panel.apk` and
-`artifacts/android/northland-bridge.jar`. It downloads pinned Shizuku API
-dependencies on the first build. It doesn't need any game files.
+`artifacts/android/northland-bridge.jar`. It downloads pinned LibADB and
+Bouncy Castle dependencies on the first build. It doesn't need any game files.
 Run `python scripts/package-android.py` to make a setup ZIP with the built files.
 
 ### Install and start
@@ -240,7 +247,8 @@ They cannot recover an unsaved session if Android has already killed the game.
 | Saved groups | Saving and recalling Knut, camera centering, adding him to an empty group, touch controls and cancellation checked. Multi-unit armies and group save/load still need testing |
 | Returning from other apps | Back, Home with the corrected open command, and recent apps kept the tutorial running with Knut selected. Held input releases and waits for neutral. The companion also has an Open / return button. Long background stays and Android killing the game still need separate checks |
 | Longer play | Full campaigns, every character type, multi-unit groups, text entry, sound and long sessions still need proper testing |
-| Setup | Windows setup UI installed and activated the build on the Thor. Shizuku paired and restarted through Wireless debugging, then our app activated controls and passed cursor/camera checks. A full reboot and native macOS/Linux UI runs remain unverified |
+| Setup | Windows setup UI checked. Pairing survived updates and reboots. On-device activation after a full reboot confirmed on the Thor. Native macOS/Linux setup windows still need testing |
+| Separate game APK test | A private copy installed beside the purchased game, but stopped at a license-check error. It is not a playable replacement. [Test results](docs/apk-experiment.md) |
 
 The current build assumes the tested Thor setup: Android 13, a 1920x1080 top
 screen, a 1240x1080 bottom screen on display 4, and the built-in Odin Controller.
@@ -273,6 +281,7 @@ Run the action-list and group-control checks locally with Java installed:
 ```sh
 bash scripts/check-action-snapshots.sh
 bash scripts/check-control-groups.sh
+bash scripts/check-wireless-activation.sh
 ```
 
 The recognition checks need your own private reference captures. The
@@ -290,7 +299,7 @@ project, with no involvement from the game's developers, publisher or AYN.
 The Thor companion was developed with Codex assistance and testing on the device.
 No game files, game APKs or saves are included in this repository.
 
-The companion includes the Shizuku API and AndroidX annotation library.
+The companion includes LibADB, Bouncy Castle and AndroidX annotation.
 [Third-party notices and licenses](third_party/NOTICE.md) are included.
 
 [martianboy's Cultures BMD research](https://github.com/martianboy/cultures2-wasm/blob/master/src/bmd.rs)

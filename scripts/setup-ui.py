@@ -47,7 +47,7 @@ class SetupWindow:
         ttk.Button(links,text='Get Android Platform Tools',command=lambda:webbrowser.open(
             'https://developer.android.com/tools/releases/platform-tools')).pack(side='left')
         ttk.Button(links,text='On-device activation guide',command=lambda:webbrowser.open(
-            'https://shizuku.rikka.app/guide/setup/')).pack(side='left',padx=8)
+            'https://github.com/ROM-HackZ/Cultures-Northland-AYN-Thor/blob/main/docs/setup.md')).pack(side='left',padx=8)
         root.after(60,self.poll)
 
     def choose_adb(self):

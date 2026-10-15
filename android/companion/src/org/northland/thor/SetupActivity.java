@@ -56,14 +56,24 @@ public final class SetupActivity extends Activity {
             }
         });
         layout.addView(game);
-        Button shizuku=new Button(this);shizuku.setText("Shizuku setup");
-        shizuku.setOnClickListener(v -> {
-            Intent intent=getPackageManager().getLaunchIntentForPackage("moe.shizuku.privileged.api");
-            if(intent==null) intent=new Intent(Intent.ACTION_VIEW,Uri.parse("https://shizuku.rikka.app/download/"));
-            startActivity(intent);
-        });layout.addView(shizuku);
+        Button pair=new Button(this);pair.setText("Pair wireless activation");
+        pair.setOnClickListener(v -> {
+            if(!getSystemService(android.app.NotificationManager.class).areNotificationsEnabled()) {
+                Toast.makeText(this,"Enable Northland Thor notifications so you can enter Android's pairing code.",Toast.LENGTH_LONG).show();
+                startActivity(new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE,getPackageName()));
+                return;
+            }
+            new android.app.AlertDialog.Builder(this).setTitle("Pair this Thor once")
+                .setMessage("In Developer options, open Wireless debugging and choose Pair device with pairing code. Keep that code window open. Pull down notifications and enter its six-digit code in Northland Thor's notification.\n\nThen return here and tap Activate controls.")
+                .setPositiveButton("Open Developer options",(dialog,which) -> {
+                    activation.pair();startActivity(new Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS));
+                }).setNegativeButton("Cancel",null).show();
+        });layout.addView(pair);
+        Button settings=new Button(this);settings.setText("Wireless debugging settings");
+        settings.setOnClickListener(v -> startActivity(new Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS)));
+        layout.addView(settings);
         TextView guide=new TextView(this);guide.setTextSize(16);
-        guide.setText("Without a computer: install Shizuku and follow its Wireless debugging pairing steps. After a reboot, start Shizuku on the Thor, then tap Activate controls here. Wi-Fi is needed for wireless activation.\n\nUSB setup also works from the computer installer. Your purchased Northland app and saves stay in place.");
+        guide.setText("First setup: pair this app with Android using the button above. No separate activation app or root is needed.\n\nAfter a reboot: connect to Wi-Fi, enable Wireless debugging if needed, then tap Activate controls.\n\nUSB setup still works from the computer installer. Your purchased Northland app and saves stay in place.");
         layout.addView(guide);
         Button start = new Button(this); start.setText("Show command panel");
         start.setOnClickListener(v -> {

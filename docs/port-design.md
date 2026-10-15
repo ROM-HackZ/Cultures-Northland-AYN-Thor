@@ -56,6 +56,14 @@ The owner requires an unrooted Thor and a simple setup, and does not want invasi
 
 Within the current companion approach, use the original keyboard shortcuts wherever available. Native-menu recognition remains the practical fallback for other actions, with acknowledged recognition failures. The implemented Actions page refreshes from a recognized native menu when opened and holds that snapshot stable until an explicit refresh. It reports observed menu content, not authoritative live selection data. The current recognition catalog contains 38 distinct human-menu commands; civilian and builder gameplay checks are recorded in the device-check document. The companion cannot promise complete live action availability without an engine connection.
 
+The owner later authorized a separate private APK experiment. All six splits
+rebuilt and installed as `org.northland.thor.experimental`, with original DEX,
+native libraries, assets and license code preserved. An explicit Google Play
+package query fixed an initial licensing-service connection failure. The service
+then returned code 4, which the game treated as an error. The startup gate failed,
+so no controller adapter was added. The official installation and running session
+remained intact. See [the experiment and exact limits](apk-experiment.md).
+
 The no-root alternatives were checked against Android 13's source: `ProcessList` enables JDWP from the app's debuggable flag; `AppProfiler` checks that flag before attaching startup agents; and `GraphicsEnvironment` requires debuggability or the app's explicit `com.android.graphics.injectLayers.enable` metadata. The inspected game manifest has neither opt-in. Setting a debug-app name alone does not change its manifest flag or add those interfaces. No debug settings were changed.
 
 Repeat the binary inventory and read-only access checks with:
@@ -94,11 +102,35 @@ restore native game state after Android kills the original process.
 UI and helper communicate over an Android local socket. Both check the peer's kernel UID: the helper accepts our installed companion's UID, and the companion accepts shell UID 2000. The protocol exposes a fixed command list and controller/UI state. It has no arbitrary shell command or general-purpose input endpoint.
 
 USB background launch uses `nohup`. The desktop setup window installs and
-activates in one step. On-device activation uses Shizuku's UserService API to
-run the same helper embedded in our APK as shell UID 2000. Its Binder accepts
-only named activation operations from our app or shell. Both routes use the
-same file lock and cannot run duplicate helpers. A reboot ends the helper;
-restart Shizuku on the Thor and tap Activate, or use the USB setup window.
+activates in one step. On-device activation now uses LibADB to pair with Android's
+Wireless debugging and start the same helper embedded in our APK as shell UID
+2000. Activation first reads adbd's current TLS port using the fixed command
+`/system/bin/getprop service.adb.tls.port`, with a two-second limit. The ordinary
+app could read it on the tested Thor. It validates the port and falls back to NSD
+if the property is restricted or connecting fails; no persisted port is reused.
+Pairing ports still use NSD. Discovery accepts only addresses on this device;
+all connections use 127.0.0.1. The ADB client runs a fixed UID check and helper
+startup, then closes.
+There is no command console or arbitrary-command IPC. Shizuku is no longer a
+dependency.
+
+Shell commands use `shell,v2,raw:`. `ShellReply` bounds stdout/stderr, parses
+fragmented frames and stops at the explicit exit-status frame rather than
+waiting for transport EOF. The helper starts with `nohup setsid` and redirected
+stdio so a closing session cannot hang up its terminal process group.
+[Android's shell service](https://github.com/LineageOS/android_packages_modules_adb/blob/lineage-20.0/daemon/shell_service.cpp)
+explains the implicit PTY used by legacy shell sessions. A startup marker is
+checked together with exit status, then the helper's authenticated socket must
+connect. Startup errors after authentication do not fall back to discovery.
+Pressing Activate during an attempt cancels it and checks the current port again;
+generation guards prevent an old callback from changing the new attempt.
+
+The RSA identity is encrypted with Android Keystore AES-GCM in private no-backup
+storage. Pairing uses a foreground service and notification reply so Android's
+code window stays open. Socket deadlines and cancellation bound failed attempts.
+UI reports active only after the authenticated helper socket connects. Both
+activation routes use the same file lock. A reboot ends the helper; reconnect
+to Wi-Fi, enable Wireless debugging and tap Activate, or use the USB setup window.
 See [setup](setup.md) for requirements and live verification limits.
 
 ## Command coverage

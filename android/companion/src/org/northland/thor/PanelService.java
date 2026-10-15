@@ -33,7 +33,8 @@ public final class PanelService extends Service {
         super.onCreate();
         NotificationManager nm = getSystemService(NotificationManager.class);
         nm.createNotificationChannel(new NotificationChannel("controller", "Northland controller", NotificationManager.IMPORTANCE_LOW));
-        PendingIntent open = PendingIntent.getActivity(this, 0, new Intent(this, SetupActivity.class), PendingIntent.FLAG_IMMUTABLE);
+        PendingIntent open = PendingIntent.getActivity(this, 0, new Intent(this, SetupActivity.class)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_REORDER_TO_FRONT|Intent.FLAG_ACTIVITY_SINGLE_TOP), PendingIntent.FLAG_IMMUTABLE);
         startForeground(1, new Notification.Builder(this, "controller")
             .setSmallIcon(android.R.drawable.ic_menu_compass).setContentTitle("Northland Thor")
             .setContentText("Controller panel running — tap for controls").setContentIntent(open).build());

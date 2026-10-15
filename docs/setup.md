@@ -3,8 +3,8 @@
 Install your purchased Android copy of Cultures: Northland first. This project
 adds the controller helper and bottom-screen panel. It does not include the game.
 
-You have two ways to activate the controls. USB setup works without Shizuku.
-On-device activation uses Shizuku and Wireless debugging. Neither requires root.
+You can activate over USB, or pair Northland Thor directly with Android's
+Wireless debugging. Both work without Shizuku or root.
 
 ## Computer setup window
 
@@ -52,43 +52,68 @@ silently download or replace ADB.
 Install `northland-panel.apk` on the Thor. This APK includes our controller
 helper; the separate JAR is only needed for USB activation.
 
-1. Install [Shizuku from its official download page](https://shizuku.rikka.app/download/).
-2. In Shizuku, follow **Start via Wireless debugging > Pairing**. Use the pairing
-   code shown in Android's Wireless debugging settings. This pairing stays on
-   your device; our companion does not collect or store the code.
-   Allow Shizuku notifications so you can enter the code in its notification.
-3. Start Shizuku using Wireless debugging.
-4. Open **Northland Thor**, allow its overlay when prompted, then tap
-   **Activate controls**.
-5. Allow Northland Thor's Shizuku access when prompted.
-6. Wait for **Controls are active**, then tap **Open / return to Northland**.
+1. Connect to Wi-Fi. Enable Developer options if needed by tapping Android's
+   Build number seven times in About device.
+2. Open **Northland Thor**, allow notifications, and tap **Pair wireless
+   activation**, then **Open Developer options**.
+3. Find **Wireless debugging**, enable it and allow the current network. Tap
+   the row to open its settings, then **Pair device with pairing code**.
+4. Keep Android's code window open. Pull down notifications, expand the
+   Northland Thor group and **Northland Thor setup** notification if needed.
+5. Tap **Enter pairing code**, enter Android's six digits, and tap the send arrow.
+6. Wait for **Paired**, return to Northland Thor, allow its overlay when prompted,
+   then tap **Activate controls**.
+7. Wait for **Controls are active**, then tap **Open / return to Northland**.
+   Release the sticks and buttons before playing.
 
-After rebooting, start Shizuku on the Thor again, then tap **Activate controls**
-in our app. You do not need a computer for that route. Wireless activation needs
-Wi-Fi. The controller helper does not use Wi-Fi to send game commands.
+After rebooting, connect to Wi-Fi, enable Wireless debugging if Android turned
+it off, then tap **Activate controls**. Pair again only if Android has forgotten
+the authorization. The running helper sends game commands locally.
 
-Shizuku has its own [step-by-step setup guide](https://shizuku.rikka.app/guide/setup/)
-for Android's pairing screens. This is manual activation after reboot, not an
-unattended boot service. USB setup remains available if you do not want Shizuku.
-If Shizuku keeps searching for Wireless debugging, turn Wireless debugging off
-and back on in Android's Developer options, allow the current Wi-Fi network,
-then return to Shizuku. That was needed once during testing on this Thor.
+If activation keeps searching, turn Wireless debugging off and back on, allow
+the current Wi-Fi network, then return to our app and tap **Activate controls**
+again. That restarts the attempt and reads the current port immediately. Discovery
+waits up to two minutes and shows a recovery hint after ten seconds.
+If pairing fails, close the code window and retry with a fresh code. Keep
+Android's window open until pairing finishes.
+
+An earlier Shizuku pairing does not authorize our app's key. Users upgrading
+from that build need to pair Northland Thor once. Shizuku can stay installed
+for other apps; Northland Thor no longer uses it. USB setup remains available.
 
 ## What activation runs
 
-Shizuku starts a small service containing our own helper as Android's shell UID
-2000. It accepts only status, start and stop operations from our companion or
-shell. It accepts no shell commands, paths or input coordinates over that
-interface. The helper keeps its authenticated socket, Northland/display-0 focus
-checks, input release and neutral-before-rearm rules.
+The companion reads Android's current TLS debugging port and connects to loopback
+using Android's paired TLS connection. Its fixed startup command runs our
+embedded helper as Android shell UID 2000, then closes the ADB connection.
+There is no shell console or remote-device address field.
 
-USB and Shizuku activation use the same file lock. They cannot run two controller
-helpers together. An installed build gets a content-derived service version, so
-Shizuku can replace its service when the app code changes.
+Startup uses ADB's non-interactive shell-v2 protocol, checks its exit status,
+and detaches the helper with `nohup` and `setsid`. The previous terminal session
+could hang up its background child or stall while reading for EOF. A shell exit
+marker alone is insufficient: the authenticated controller socket must connect.
+Once Android has authenticated, a helper startup failure is shown as that error;
+it no longer sends the app back into port discovery.
 
-The build pins the Shizuku API and AndroidX annotation downloads by SHA-256.
-See [third-party notices](../third_party/NOTICE.md). The separate Shizuku manager
-is not bundled or modified.
+The RSA pairing key belongs to this app installation. It is encrypted with an
+Android Keystore key in private, non-backed-up storage. Pairing codes are not
+saved. Clearing companion data or forgetting it in Android requires pairing again.
+
+Activation reads `service.adb.tls.port` through a bounded `/system/bin/getprop`
+call inside our ordinary app. This worked on the Android 13 Thor without root.
+If a ROM restricts that property or the connection fails, local NSD discovery
+remains available. Pairing-code ports still use discovery. Activation no longer
+reuses a persisted port from a previous boot. Only an authenticated helper socket
+counts as active.
+
+After pairing, Activate does not need another permission popup. Progress and
+errors appear in our app and its setup notification; a sound is not success.
+
+USB and wireless activation use the same file lock, so only one helper runs.
+Its socket authenticates the companion's kernel UID and accepts named commands.
+Focus checks, input release and neutral-before-rearm stay in place. The build
+pins LibADB, Bouncy Castle and AndroidX annotation by SHA-256.
+See [third-party notices](../third_party/NOTICE.md).
 
 ## Local builds and bundles
 
@@ -112,6 +137,7 @@ recognizing a live helper started through either route:
 
 ```sh
 python -m unittest discover -s tests -p test_setup_backend.py
+bash scripts/check-wireless-activation.sh
 python scripts/verify-desktop-setup.py --adb PATH_TO_ADB --serial DEVICE_SERIAL --action refresh
 ```
 
@@ -120,8 +146,10 @@ connected Thor. Setup intentionally updates our app and restarts its helper.
 It never reinstalls or clears the game.
 
 On October 15, the Windows window installed and activated the build on the Thor.
-Shizuku pairing succeeded through its notification; stopping its server and
-restarting it through its Wireless debugging button also succeeded. Our app then
-started its embedded helper as shell UID 2000, and cursor/camera checks passed
-in the running tutorial. A complete device reboot and native macOS/Linux window
-runs have not yet been checked. See the [device results](android-controller.md).
+Northland Thor paired through its own notification and started its helper
+directly as shell UID 2000 with Shizuku's server stopped. Cursor/camera checks
+passed in a loaded tutorial save. Reboot testing exposed port-discovery and
+helper-startup failures. After installing the shell-v2 startup fix and rebooting,
+the owner confirmed that activation worked. The pairing carried over; Wireless
+debugging needed enabling again. Native macOS/Linux setup windows remain unchecked.
+See the [device results](android-controller.md).

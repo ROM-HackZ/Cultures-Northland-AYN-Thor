@@ -14,8 +14,11 @@ def main():
            'scripts/setup-ui.py','scripts/setup_backend.py','scripts/android-controller.py','scripts/northland_session.py',
            'artifacts/android/northland-panel.apk','artifacts/android/northland-bridge.jar',
            'docs/setup.md','docs/session-recovery.md','docs/control-groups.md','docs/ui-navigation.md',
-           'docs/android-controller.md','docs/port-design.md','docs/compatibility.md',
-           'third_party/NOTICE.md','third_party/Shizuku-API-LICENSE.txt','third_party/AndroidX-annotation-LICENSE.txt']
+           'docs/android-controller.md','docs/port-design.md','docs/compatibility.md','docs/apk-experiment.md',
+           'third_party/NOTICE.md','third_party/AndroidX-annotation-LICENSE.txt',
+           'third_party/libadb-COPYING.txt','third_party/libadb-Apache-2.0-LICENSE.txt',
+           'third_party/libadb-BSD-3-Clause-LICENSE.txt','third_party/libadb-MIT-LICENSE.txt',
+           'third_party/BouncyCastle-LICENSE.html']
     for name in names:
         if not (ROOT/name).is_file():raise FileNotFoundError('Build/setup input missing: '+name)
     args.out.parent.mkdir(parents=True,exist_ok=True)
