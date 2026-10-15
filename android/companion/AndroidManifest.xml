@@ -2,7 +2,14 @@
     <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="32" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="moe.shizuku.manager.permission.API_V23" />
+    <queries><package android:name="moe.shizuku.privileged.api" /></queries>
     <application android:label="Northland Thor" android:theme="@android:style/Theme.Material.NoActionBar" android:allowBackup="false">
+        <meta-data android:name="moe.shizuku.client.V3_SUPPORT" android:value="true" />
+        <provider android:name="rikka.shizuku.ShizukuProvider"
+            android:authorities="org.northland.thor.shizuku" android:multiprocess="false"
+            android:enabled="true" android:exported="true"
+            android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
         <activity android:name=".SetupActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

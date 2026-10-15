@@ -18,6 +18,8 @@ def main():
     capture = commands.add_parser("capture", help="Save a physical display screenshot without device temp files")
     capture.add_argument("--surface", required=True, type=int)
     capture.add_argument("--out", required=True, type=Path)
+    capture.add_argument("--settle-ms",type=int,choices=range(5001),default=0,metavar="0..5000",
+                         help="Let app/scroll animations settle before recording UI coordinates")
     tap = commands.add_parser("tap")
     tap.add_argument("x", type=float)
     tap.add_argument("y", type=float)
@@ -32,6 +34,7 @@ def main():
     prefix = [args.adb] + (["-s", args.serial] if args.serial else [])
 
     if args.command == "capture":
+        time.sleep(args.settle_ms/1000)
         result = subprocess.run(prefix + ["exec-out", "screencap", "-p", "-d", str(args.surface)],
                                 check=True, capture_output=True)
         if not result.stdout.startswith(b"\x89PNG\r\n\x1a\n"):

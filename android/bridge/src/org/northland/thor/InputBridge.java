@@ -536,7 +536,7 @@ public final class InputBridge {
                 if (now - lastDiagnostic >= 200) {
                     File temp = new File(DIR, "state.tmp");
                     try (Writer out = new OutputStreamWriter(new FileOutputStream(temp), "UTF-8")) {
-                        out.write("{\"focused\":" + focused + ",\"armed\":" + armed + ",\"x\":" + Math.round(x)
+                        out.write("{\"pid\":"+android.os.Process.myPid()+",\"focused\":" + focused + ",\"armed\":" + armed + ",\"x\":" + Math.round(x)
                             + ",\"y\":" + Math.round(y) + ",\"wheel\":" + (wheels.mode!=WheelState.Mode.NONE)
                             + ",\"choice\":" + wheels.choice + ",\"wheelMode\":\""+wheels.mode+"\",\"progress\":"+wheels.progress(now)
                             + ",\"groupRequests\":"+groupRequests+",\"lastGroup\":"+lastGroup+",\"lastGroupOperation\":\""+lastGroupOperation+"\""
@@ -565,6 +565,8 @@ public final class InputBridge {
 
     public static void main(String[] args) throws Exception {
         if (args.length == 0) throw new IllegalArgumentException("controller | key NAME | click X Y left|right | move X Y");
+        File directory=new File(DIR);
+        if(!directory.isDirectory() && !directory.mkdirs()) throw new IOException("Cannot create helper directory");
         try (RandomAccessFile lockFile = new RandomAccessFile(DIR + "/lock", "rw");
              FileLock lock = lockFile.getChannel().tryLock()) {
             if (lock == null) throw new IOException("Northland bridge already running");

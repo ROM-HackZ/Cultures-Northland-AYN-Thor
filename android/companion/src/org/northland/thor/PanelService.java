@@ -13,6 +13,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 
 /** Non-focusable windows keep the original game's SDL surface active. */
 public final class PanelService extends Service {
+    static volatile boolean bridgeOnline;
     final Handler handler = new Handler(Looper.getMainLooper());
     final ConcurrentLinkedQueue<String> commands = new ConcurrentLinkedQueue<>();
     volatile boolean running, connected, active, armed;
@@ -78,6 +79,7 @@ public final class PanelService extends Service {
                 if (s.getPeerCredentials().getUid() != 2000) throw new IOException("Bridge must run as ADB shell");
                 s.setSoTimeout(2500);
                 connected = true;
+                bridgeOnline=true;
                 try (BufferedReader in = new BufferedReader(new InputStreamReader(s.getInputStream()))) {
                     OutputStream out = s.getOutputStream();
                     long heartbeat = 0;
@@ -128,6 +130,7 @@ public final class PanelService extends Service {
                 } finally { s.close(); }
             } catch (Exception e) { /* A missing bridge is a visible offline state. */ }
             connected = active = armed = navigating = false;navigationFocus=null;
+            bridgeOnline=false;
             wheel = -1;replaceProgress=0;selectionRevision=-1;commands.clear();
             handler.post(() -> { deck.invalidateActions();deck.confirmGroup=false;deck.actionError="Connection lost. Refresh after reconnecting."; });
             try { if (socket != null) socket.close(); } catch (IOException ignored) { }
@@ -136,6 +139,7 @@ public final class PanelService extends Service {
     }
 
     @Override public void onDestroy() {
+        bridgeOnline=false;
         running = false; handler.removeCallbacksAndMessages(null);
         try { if (socket != null) socket.close(); } catch (IOException ignored) { }
         if (cursor != null) topManager.removeView(cursor);

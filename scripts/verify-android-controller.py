@@ -11,13 +11,15 @@ import re
 import subprocess
 import time
 from pathlib import Path
+from northland_session import game_identity, open_game_args
+from setup_backend import helper_active
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--adb", default="adb")
     parser.add_argument("--serial")
-    parser.add_argument("--case", required=True, choices=("camera", "cursor", "select", "order", "drag", "actions", "back", "zoom", "wheel", "wheel-confirm", "focus", "panel-loss"))
+    parser.add_argument("--case", required=True, choices=("camera", "cursor", "select", "order", "drag", "actions", "back", "zoom", "wheel", "wheel-confirm", "focus", "home-return", "panel-loss"))
     parser.add_argument("--out", type=Path, default=Path("artifacts/controller-check"))
     parser.add_argument("--pan-direction", choices=("left", "right"), default="right",
                         help="Camera test direction; choose away from the current map edge")
@@ -31,7 +33,7 @@ def main():
         return json.loads(shell("cat", "/data/local/tmp/northland-thor/state.json"))
 
     def await_state(check):
-        deadline = time.monotonic() + 3
+        deadline = time.monotonic() + 8
         while time.monotonic() < deadline:
             current = state()
             if check(current):
@@ -40,8 +42,7 @@ def main():
         raise RuntimeError("Bridge did not reach expected state: " + repr(current))
 
     dump = shell("dumpsys", "input")
-    if not any(line.startswith("app_process64 /system/bin org.northland.thor.InputBridge controller")
-               for line in shell("ps", "-A", "-o", "ARGS").splitlines()):
+    if not helper_active(adb):
         parser.error("The controller bridge must be running")
     start = dump.index("FocusedWindows:")
     focus = dump[start:dump.index("FocusRequests:", start)]
@@ -78,6 +79,7 @@ def main():
         "zoom": [(1, 0x13e, 1)],
         "wheel": [(3, 9, 32767), (3, 0, 32767)],
         "focus": [(3, 2, 20000)],
+        "home-return": [(3, 2, 20000)],
         "wheel-confirm": [(3, 9, 32767), (3, 0, -32767)],
         "panel-loss": [(3, 2, 20000)],
     }
@@ -93,9 +95,10 @@ def main():
     held = None
     return_to_game = False
     restart_panel = False
+    identities = {"before": game_identity(shell)} if args.case in ("focus", "home-return", "panel-loss") else None
     try:
         emit(events)
-        if args.case in ("camera", "focus", "panel-loss"):
+        if args.case in ("camera", "focus", "home-return", "panel-loss"):
             pan_key = 21 if args.case == "camera" and args.pan_direction == "left" else 22
             held = await_state(lambda s: pan_key in s["keys"])
         elif args.case == "cursor":
@@ -131,15 +134,25 @@ def main():
             held = await_state(lambda s: key in s["keys"])
         time.sleep(.35)
         capture("held")
-        if args.case == "focus":
-            shell("am", "start", "--display", "0", "-n", "org.northland.thor/.SetupActivity")
+        if args.case in ("focus", "home-return"):
+            if args.case == "focus":
+                shell("am", "start", "--display", "0", "-n", "org.northland.thor/.SetupActivity")
+            else:
+                shell("input", "-d", "0", "keyevent", "3")
             return_to_game = True
             away = await_state(lambda s: not s["focused"] and not s["armed"] and not s["keys"] and not s["mouse"])
             capture("away")
-            shell("am", "start", "--display", "0", "-n", "com.runesoft.cultures/com.rune_soft.culturesnorthland.MainActivity")
+            identities["away"] = game_identity(shell)
+            assert identities["away"] == identities["before"], "Northland was recreated while leaving"
+            if args.case == "focus":
+                shell("input", "-d", "0", "keyevent", "4")
+            else:
+                shell(*open_game_args())
             return_to_game = False
             returning = await_state(lambda s: s["focused"] and not s["armed"] and not s["keys"] and not s["mouse"])
             capture("waiting-for-neutral")
+            identities["returned"] = game_identity(shell)
+            assert identities["returned"] == identities["before"], "Northland was recreated while returning"
             held = {"while-held": held, "away": away, "returned-with-control-held": returning}
         if args.case == "panel-loss":
             shell("am", "force-stop", "org.northland.thor")
@@ -155,14 +168,22 @@ def main():
             emit([(kind, code, 0) for kind, code, _ in events])
         finally:
             if return_to_game:
-                shell("am", "start", "--display", "0", "-n", "com.runesoft.cultures/com.rune_soft.culturesnorthland.MainActivity")
+                # Only resume a surviving instance. Never hide a failed test with
+                # a fresh game launch from the cleanup path.
+                if game_identity(shell) == identities["before"]:
+                    shell(*open_game_args())
             if restart_panel:
                 shell("am", "start", "--display", "0", "-n", "org.northland.thor/.SetupActivity", "--ez", "show-panel", "true")
     released = await_state(lambda s: s["armed"] and not s["keys"] and not s["mouse"] and not s["wheel"])
     time.sleep(.15)
     capture("after")
+    if identities is not None:
+        identities["after"] = game_identity(shell)
+        assert identities["after"] == identities["before"], "Northland changed after input release"
     report = {"case": args.case, "synthetic_evdev": True, "initial": initial, "held": held,
               "released": released, "engine_result": "Review before/held/after screenshots; state alone is not game proof"}
+    if identities is not None:
+        report["session_identity"] = identities
     (args.out / f"{args.case}.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     print(f"{args.case}: controller event path and release passed. Inspect screenshots in {args.out}")
 

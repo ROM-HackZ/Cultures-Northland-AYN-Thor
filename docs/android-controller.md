@@ -6,6 +6,12 @@ Tests on October 15, 2026 use official Android Northland 1.1 (16), package `com.
 
 | Check | Evidence |
 | --- | --- |
+| Windows setup window | Real Tk controls found the Thor, installed/updated our app and helper, and activated controls. Activate also reused a running Shizuku helper. Logs: `artifacts/desktop-install/result.txt`, `desktop-activate-shizuku/result.txt`; window capture: `desktop-setup/setup-window.png` |
+| Activation on the Thor | Official Shizuku 13.6.0 paired through its notification. Its Stop and Wireless debugging Start buttons stopped the old server and started a new one without a host start command. Wireless debugging needed one off/on toggle for discovery. Captures: `artifacts/activation-pair-result.png`, `activation-wireless-manager-return.png` |
+| Embedded helper after wireless start | Activate controls launched `org.northland.thor:activation` as shell UID 2000, PID 4324. Our setup showed active, and cursor/camera event-path and release checks passed in `artifacts/activation-wireless-check/`. The game and selection stayed present; the camera was over unexplored terrain. No game APK or save was changed |
+| Setup limits | Complete device reboot, physically unplugged operation and native macOS/Linux setup windows remain unverified. Windows UI and WSL build were exercised. Host setup/session checks passed (11 tests) |
+| Extracted setup bundle | The window from the actual ZIP, extracted into a path with spaces, found the Thor and reused its running Shizuku helper. Window capture and log: `artifacts/bundle-window-check/` |
+| App switching through the Shizuku helper | Held camera input released away from Northland and remained released until neutral after returning. Game PID 9598, activity 6ee284 and task 164 stayed identical. Captures and identity: `artifacts/activation-wireless-check/focus.json`. Recalling group 1 centered the camera back on Knut (`artifacts/activation-center-return/dpad-after-top.png`) |
 | LT navigation-only | LT alone caused no clicks, captures or group recalls. LT + D-pad reached the toolbar wrench; A opened Options, then navigation reached X and A closed it. Captures reviewed in `artifacts/ui-nav-quiet/`. A + left-stick dragging continued while LT was pressed and released. [Navigation details and limits](ui-navigation.md) |
 | Current A selection | A now owns left-mouse selection and dragging. The A-held drag guard passed on the Thor. Earlier LT selection results below describe the previous mapping |
 | Left stick for both wheels | Installed build uses LS to highlight commands and group slots. Cursor coordinates stayed fixed while choosing; moving RS changed neither the wheel choice nor injected camera keys. RT + LS left + A opened the original Save window, then B closed it. Evidence: `artifacts/wheels-left-stick-groups/`, `wheels-left-stick-commands/`, `wheels-left-stick-confirm/`, `wheels-left-stick-close/` |
@@ -43,13 +49,22 @@ Tests on October 15, 2026 use official Android Northland 1.1 (16), package `com.
 | Original touch controls | Experimental two-finger shortcut removed at the owner's request; no touchscreen observer runs in the helper |
 | Earlier RT wheel | Appeared, highlighted Profession with right stick pointing right, and dismissed on RT release. Both wheels now use LS |
 | Earlier wheel confirmation | RT + left on right stick + A opened Save; no left click leaked into the game. Both wheels now use LS |
-| Focus loss during pan | Earlier neutral/rearm check passed. Latest check after the stick swap released keys on focus loss, but returning failed and Northland restarted; resumed gameplay recovery needs investigation |
+| Return after focus loss | Setup/Back and Home/corrected-open passed at the menu and in the Controls tutorial with Knut selected. Process 28045, ActivityRecord 1891ead and task 138 stayed identical before, away, returned and after neutral. Held pan released while away and stayed released on return until neutral. Knut's selection and the mission remained visible. Evidence: `artifacts/session-recovery/installed/` and `mission/` |
+| Recent apps and rearmed camera | Tapping Northland's card in recent apps returned to the same mission, process and activity. Camera panning worked again after neutral. Evidence: `artifacts/session-recovery/recents.png`, `recents-return-top.png`, `activities-recents-return.txt` and `rearmed/` |
+| Companion return button | Tapping the installed Open / return to Northland button returned to the same process and activity. Captures: `artifacts/session-recovery/setup-installed.png`, `setup-return-top.png`; identity dump `activities-setup-return.txt` |
 | Companion stopped during pan | Keys release, controller injection disables, and the bottom launcher becomes visible again; reconnecting requires neutral |
 | Audible output, physical feel, long sessions | Awaiting owner testing |
 
 The helper's state report establishes what it injected. Screenshots establish what the game did. Neither establishes sound heard at the speakers or physical control feel.
 
-After the stick swap, synthetic checks confirmed left-stick cursor motion, right-stick panning, and a visible LT + left-stick rectangle. The latest app-switch check restarted Northland; a fresh Controls tutorial was opened afterward. Do not run app-switch checks in an unsaved play session.
+An earlier app-switch test used a component-only `am start` to return. That can
+create a second instance of Northland's standard-launch-mode SDL activity.
+The retained October 15 log also shows a launcher tap creating another activity
+inside the existing process, followed by a destroyed-mutex failure and process
+death. Its task had a component-only base intent left by the earlier probes.
+See [session recovery](session-recovery.md) for the fix and evidence. Save first
+before testing lifecycle behavior; process death and long background stays are
+separate from this duplicate-launch fix.
 
 The game distinguishes a short left click from a stationary hold. A now supplies that input. To issue an order, select a villager, position the cursor over terrain, hold A still and release, or use X for an immediate right-click order. LT only navigates visible buttons. The obsolete LT selection cases have been removed from the controller test script.
 
@@ -71,10 +86,11 @@ python scripts/verify-android-controller.py --serial DEVICE_SERIAL --case zoom
 python scripts/verify-android-controller.py --serial DEVICE_SERIAL --case wheel
 python scripts/verify-android-controller.py --serial DEVICE_SERIAL --case wheel-confirm
 python scripts/verify-android-controller.py --serial DEVICE_SERIAL --case focus
+python scripts/verify-android-controller.py --serial DEVICE_SERIAL --case home-return
 python scripts/verify-android-controller.py --serial DEVICE_SERIAL --case panel-loss
 ```
 
-`--adb PATH_TO_ADB` is available. Results go to ignored `artifacts/controller-check`: JSON input-state reports and before/held/after screenshots. Inspect the pictures; a state assertion alone is insufficient. Some checks depend on selection and UI state. Wheel confirmation opens Save without choosing a slot. Focus testing opens our setup activity and returns to the existing game activity.
+`--adb PATH_TO_ADB` is available. Results go to ignored `artifacts/controller-check`: JSON input-state reports and before/held/after screenshots. Inspect the pictures; a state assertion alone is insufficient. Some checks depend on selection and UI state. Wheel confirmation opens Save without choosing a slot. Focus testing opens our setup activity and returns with Back. Home-return uses Home, then the corrected game open command. Both record process, activity and task identity at every stage and reject a recreation, including one inside the same process. Cleanup never starts a replacement game to hide a failed return.
 
 For direct guarded probes, stop controller mode first:
 

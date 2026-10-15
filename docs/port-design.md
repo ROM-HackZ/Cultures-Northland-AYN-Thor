@@ -83,9 +83,23 @@ The prototype fixes geometry to the tested 1920×1080 top and 1240×1080 bottom 
 
 One helper owns injected keys and mouse buttons. A file lock rejects duplicate helpers. The launcher stops an old helper cleanly before replacing its artifact. A stop request, controller-reader failure, loss of Northland focus or loss of the companion connection releases held input. Focus is polled, so app-switch handling has a short delay. Returning requires neutral controls before injection resumes.
 
+Opening Northland uses its MAIN/LAUNCHER intent with NEW_TASK, REORDER_TO_FRONT
+and SINGLE_TOP. The companion's Open / return button and the deployment script's
+`game` action reuse an existing game activity instead of stacking a second SDL
+instance. Lifecycle tests return from setup with Back, or use this corrected
+open command after Home. They compare process and activity identity, not just
+the task number. See [session recovery](session-recovery.md). The helper cannot
+restore native game state after Android kills the original process.
+
 UI and helper communicate over an Android local socket. Both check the peer's kernel UID: the helper accepts our installed companion's UID, and the companion accepts shell UID 2000. The protocol exposes a fixed command list and controller/UI state. It has no arbitrary shell command or general-purpose input endpoint.
 
-Background launch uses `nohup`. A reboot ends the helper and currently requires activation from a computer again. Cable-disconnect behavior still needs a physical check. Phone-only activation needs a separate investigation.
+USB background launch uses `nohup`. The desktop setup window installs and
+activates in one step. On-device activation uses Shizuku's UserService API to
+run the same helper embedded in our APK as shell UID 2000. Its Binder accepts
+only named activation operations from our app or shell. Both routes use the
+same file lock and cannot run duplicate helpers. A reboot ends the helper;
+restart Shizuku on the Thor and tap Activate, or use the USB setup window.
+See [setup](setup.md) for requirements and live verification limits.
 
 ## Command coverage
 
